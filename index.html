@@ -3916,6 +3916,7 @@
                         const { data: batch, error } = await this.supabase
                             .from('leave_requests')
                             .select('*')
+                            .eq('tenant_id', this._tid())
                             .range(from, from + batchSize - 1);
                         if (error) { console.error('❌ Bids fetch error:', error.message); break; }
                         if (!batch || batch.length === 0) break;
@@ -4063,6 +4064,7 @@
                     const { error } = await this.supabase
                         .from('leave_requests')
                         .delete()
+                        .eq('tenant_id', this._tid())
                         .eq('employee_id', employeeId)
                         .eq('slot_type', slotType)
                         .eq('start_date', startDate);
@@ -5339,6 +5341,7 @@
                         this.supabase
                             .from('leave_requests')
                             .delete()
+                            .eq('tenant_id', this._tid())
                             .eq('employee_id', employeeId)
                             .eq('slot_type', slotType)
                             .eq('start_date', startDate)
