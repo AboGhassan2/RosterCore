@@ -1067,6 +1067,7 @@
                 l456InmUsers: [],
                 l3InmUsers: [],
                 l3TsmUsers: [],
+                hseqUsers: [],
                 results: [],
 
                 // On-Call dates per employee (extracted from Director_On-Call.xlsx)
@@ -1358,6 +1359,7 @@
                         { table: 'l456inm_users',  stateKey: 'l456InmUsers'  },
                         { table: 'l3inm_users',    stateKey: 'l3InmUsers'    },
                         { table: 'l3tsm_users',    stateKey: 'l3TsmUsers'    },
+                        { table: 'hseq_users',     stateKey: 'hseqUsers'     },
                     ];
                     const _dbg = (msg) => { const el = document.getElementById('_dbgLog'); if(el) el.innerHTML += msg + '<br>'; };
                     for (const sg of subGroups) {
@@ -1396,14 +1398,62 @@
                 }
             },
 
+            // XSS-safe HTML escaping — always wrap user-supplied strings before innerHTML
+            _escHtml(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            },
+
+            // SHA-256 hash via Web Crypto — returns 64-char hex string
+            async _hashPassword(pwd) {
+                if (!pwd) return '';
+                const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(pwd)));
+                return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+            },
+
+            // Verify input against stored value — checks hash first, falls back to plaintext
+            // (plaintext fallback allows gradual migration of existing un-hashed passwords)
+            async _verifyPassword(input, stored) {
+                if (!input || !stored) return false;
+                const inputHash = await this._hashPassword(input);
+                if (inputHash === stored) return true;
+                return input === stored; // plaintext fallback for existing data
+            },
+
+            // Non-blocking toast — replaces alert() for notifications (level: 'success'|'error'|'warn'|'info')
+            showToast(message, level = 'info', duration = 4000) {
+                const colors = {
+                    success: { bg: '#d1fae5', border: '#6ee7b7', text: '#065f46', icon: '✅' },
+                    error:   { bg: '#fee2e2', border: '#fca5a5', text: '#991b1b', icon: '❌' },
+                    warn:    { bg: '#fef3c7', border: '#fcd34d', text: '#92400e', icon: '⚠️' },
+                    info:    { bg: '#e0e7ff', border: '#a5b4fc', text: '#3730a3', icon: 'ℹ️' },
+                };
+                const c = colors[level] || colors.info;
+                const el = document.createElement('div');
+                el.setAttribute('role', 'status');
+                el.setAttribute('aria-live', 'polite');
+                el.style.cssText = `position:fixed;bottom:84px;right:24px;z-index:9999;max-width:360px;padding:12px 16px;border-radius:12px;border:1.5px solid ${c.border};background:${c.bg};color:${c.text};font-size:0.875rem;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,0.12);opacity:0;transform:translateY(8px);transition:opacity 0.2s,transform 0.2s;white-space:pre-wrap;`;
+                el.textContent = `${c.icon}  ${message}`;
+                document.body.appendChild(el);
+                requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
+                setTimeout(() => {
+                    el.style.opacity = '0'; el.style.transform = 'translateY(8px)';
+                    setTimeout(() => el.remove(), 250);
+                }, duration);
+            },
+
             async publishToSupabase() {
                 if (!this.supabase) {
-                    alert('Supabase not connected');
+                    this.showToast('Supabase not connected', 'error');
                     return;
                 }
 
                 if (this.state.employees.length === 0) {
-                    alert('⚠️ No employee data to save');
+                    this.showToast('No employee data to save', 'warn');
                     return;
                 }
 
@@ -1502,13 +1552,13 @@
                     }
 
                     this.updateSystemStatus(`✅ Saved: ${empTotal} employees, ${this.state.bids.length} bids`);
-                    alert(`✅ All data saved to Supabase!\n\n• ${empTotal} employees\n• ${this.state.bids.length} bids\n• System configuration\n• ${Object.keys(this.state.onCallDates || {}).length} on-call staff entries`);
+                    this.showToast(`All data saved to Supabase! • ${empTotal} employees • ${this.state.bids.length} bids • System configuration • ${Object.keys(this.state.onCallDates || {}).length} on-call staff entries`, 'success');
                     setTimeout(() => this.updateSystemStatus('Ready'), 4000);
 
                 } catch (error) {
                     console.error('❌ Error saving to Supabase:', error);
                     this.updateSystemStatus('❌ Save failed — check console');
-                    alert(`❌ Save failed:\n${error.message}\n\nCheck browser console (F12) for details.`);
+                    this.showToast(`Save failed: ${error.message}. Check browser console (F12) for details.`, 'error');
                 }
             },
 
@@ -1549,6 +1599,7 @@
                     localStorage.setItem('l456InmUsers', JSON.stringify(this.state.l456InmUsers || []));
                     localStorage.setItem('l3InmUsers', JSON.stringify(this.state.l3InmUsers || []));
                     localStorage.setItem('l3TsmUsers', JSON.stringify(this.state.l3TsmUsers || []));
+                    localStorage.setItem('hseqUsers', JSON.stringify(this.state.hseqUsers || []));
                     localStorage.setItem('onCallDates', JSON.stringify(this.state.onCallDates || {}));
                 } catch (e) {
                     console.error('Error saving state:', e);
@@ -1574,6 +1625,7 @@
                         this.state.l456InmUsers = JSON.parse(localStorage.getItem('l456InmUsers') || '[]');
                         this.state.l3InmUsers = JSON.parse(localStorage.getItem('l3InmUsers') || '[]');
                         this.state.l3TsmUsers = JSON.parse(localStorage.getItem('l3TsmUsers') || '[]');
+                        this.state.hseqUsers  = JSON.parse(localStorage.getItem('hseqUsers')  || '[]');
                         this.state.onCallDates = JSON.parse(localStorage.getItem('onCallDates') || '{}');
                         return true;
                     }
@@ -1664,12 +1716,12 @@
                 }
             },
 
-            handleLogin() {
+            async handleLogin() {
                 if (this.state.loginType === 'planner') {
                     const input = document.getElementById('plannerLoginPwd') || document.getElementById('metro-plannerPwd') || document.getElementById('loginPassword');
                     const password = input ? input.value : '';
-                    
-                    if (password === this.state.plannerPassword) {
+
+                    if (await this._verifyPassword(password, this.state.plannerPassword)) {
                         this.state.currentUser = { name: 'Planner Admin' };
                         this.state.userType = 'planner';
                         this.state.activeView = 'dashboard';
@@ -1686,9 +1738,9 @@
                         
                         this.renderView();
                         this.writeAuditLog('LOGIN', { role: 'planner' });
-                        alert('✅ Welcome, Planner!');
+                        this.showToast('Welcome, Planner!', 'success');
                     } else {
-                        alert('❌ Incorrect planner password.');
+                        this.showToast('Incorrect planner password.', 'error');
                     }
                 } else if (this.state.loginType === 'goldencommand') {
                     // Use _pendingLogin values if set by card button (avoids DOM ID conflicts)
@@ -1697,21 +1749,21 @@
                     this._pendingLogin = null;
                     
                     if (!gcId || !password) {
-                        alert('⚠️ Please enter both GC ID and password');
+                        this.showToast('Please enter both GC ID and password.', 'warn');
                         return;
                     }
-                    
+
                     const gcUsers = this.state.goldenCommandUsers || [];
                     const gcUser = gcUsers.find(u => u.id === gcId);
-                    
+
                     if (!gcUser) {
-                        alert('❌ Golden Command ID not found. Please contact the planner.');
+                        this.showToast('Golden Command ID not found. Please contact the planner.', 'error');
                         return;
                     }
-                    
+
                     const storedPass = gcUser.password || gcUser.id;
-                    if (password !== storedPass) {
-                        alert(`❌ Incorrect password.`);
+                    if (!await this._verifyPassword(password, storedPass)) {
+                        this.showToast('Incorrect password.', 'error');
                         return;
                     }
                     
@@ -1733,7 +1785,7 @@
                     
                     this.renderView();
                     this.writeAuditLog('LOGIN', { name: gcUser.name, id: gcUser.id, role: 'goldencommand' });
-                    alert(`✅ Welcome, ${gcUser.name}!`);
+                    this.showToast(`Welcome, ${gcUser.name}!`, 'success');
                 } else if (this.state.loginType === 'corporatestaff') {
                     const csIdInput = document.getElementById('csLoginId');
                     const passInput = document.getElementById('csLoginPwd') || document.getElementById('loginPassword');
@@ -1741,7 +1793,7 @@
                     const password = passInput ? passInput.value : '';
 
                     if (!csId || !password) {
-                        alert('⚠️ Please enter both Staff ID and password');
+                        this.showToast('Please enter both Staff ID and password.', 'warn');
                         return;
                     }
 
@@ -1749,13 +1801,13 @@
                     const csUser = csUsers.find(u => u.id === csId);
 
                     if (!csUser) {
-                        alert('❌ Corporate Staff ID not found. Please contact the planner.');
+                        this.showToast('Corporate Staff ID not found. Please contact the planner.', 'error');
                         return;
                     }
 
                     const storedPass = csUser.password || csUser.id;
-                    if (password !== storedPass) {
-                        alert('❌ Incorrect password.');
+                    if (!await this._verifyPassword(password, storedPass)) {
+                        this.showToast('Incorrect password.', 'error');
                         return;
                     }
 
@@ -1777,7 +1829,7 @@
 
                     this.renderView();
                     this.writeAuditLog('LOGIN', { name: csUser.name, id: csUser.id, role: 'corporatestaff' });
-                    alert(`✅ Welcome, ${csUser.name}!`);
+                    this.showToast(`Welcome, ${csUser.name}!`, 'success');
                 } else {
                     // Employee login — use _pendingLogin if set by card button, else read from DOM
                     const id = (this._pendingLogin?.empId) ?? (document.getElementById('empLoginId')?.value?.trim() || document.getElementById('loginId')?.value?.trim() || '');
@@ -1785,18 +1837,18 @@
                     this._pendingLogin = null;
                     
                     if (!id || !password) {
-                        alert('⚠️ Please enter both ID and password');
+                        this.showToast('Please enter both ID and password.', 'warn');
                         return;
                     }
-                    
+
                     const employee = this.state.employees.find(e => e.id === id);
                     if (!employee) {
-                        alert('❌ Operation Staff ID not found. Please upload data first.');
+                        this.showToast('Operation Staff ID not found. Please upload data first.', 'error');
                         return;
                     }
                     
                     const storedPass = this.state.employeePasswords[id] || id;
-                    if (password === storedPass) {
+                    if (await this._verifyPassword(password, storedPass)) {
                         this.state.currentUser = employee;
                         this.state.userType = 'employee';
                         this.state.verifiedEmployee = employee;
@@ -1815,9 +1867,9 @@
                         
                         this.renderView();
                         this.writeAuditLog('LOGIN', { name: employee.name, id: employee.id, department: employee.department });
-                        alert(`✅ Welcome, ${employee.name}!`);
+                        this.showToast(`Welcome, ${employee.name}!`, 'success');
                     } else {
-                        alert(`❌ Incorrect password.`);
+                        this.showToast('Incorrect password.', 'error');
                     }
                 }
             },
@@ -1852,6 +1904,13 @@
                     if (el) el.value = '';
                 });
 
+                // Clear all running timers to prevent interval leaks
+                clearInterval(window._countdownInterval);   window._countdownInterval = null;
+                clearInterval(window._gcCountdownInterval); window._gcCountdownInterval = null;
+                clearInterval(window._csCountdownTimer);    window._csCountdownTimer = null;
+                clearInterval(window._dashInterval);        window._dashInterval = null;
+                this.stopAdminPolling();
+
                 // Re-sync only user lists from Supabase so dropdowns are fresh on next login
                 if (this.supabase) {
                     try {
@@ -1867,6 +1926,7 @@
                             { table:'l456inm_users', key:'l456InmUsers' },
                             { table:'l3inm_users',   key:'l3InmUsers'   },
                             { table:'l3tsm_users',   key:'l3TsmUsers'   },
+                            { table:'hseq_users',    key:'hseqUsers'    },
                         ]) {
                             const { data: rows } = await this.supabase
                                 .from(sg.table).select('id,name,password,email').eq('tenant_id', this._tid());
@@ -2224,14 +2284,21 @@
             handleFileUpload(event) {
                 const file = event.target.files[0];
                 if (!file) return;
-                
+
                 if (!file.name.match(/\.(xlsx|xls)$/)) {
-                    alert('Please upload a valid Excel file (.xlsx or .xls)');
+                    this.showToast('Please upload a valid Excel file (.xlsx or .xls)', 'warn');
                     return;
                 }
-                
+
+                if (this.state.employees.length > 0) {
+                    const ok = confirm(
+                        `⚠️ This will replace all ${this.state.employees.length} existing employee records and clear their passwords.\n\nAre you sure you want to continue?`
+                    );
+                    if (!ok) { event.target.value = ''; return; }
+                }
+
                 const reader = new FileReader();
-                reader.onload = (e) => {
+                reader.onload = async (e) => {
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
@@ -2317,8 +2384,15 @@
                                         const jsDate = new Date(excelEpoch.getTime() + dateVal * 24 * 60 * 60 * 1000);
                                         seniorityDate = jsDate.toISOString();
                                     } else {
-                                        // String date
-                                        const jsDate = new Date(dateVal);
+                                        // String date — try DD/MM/YYYY and DD-MM-YYYY before falling back
+                                        // to new Date() which is locale-sensitive and silently wrong
+                                        const dmyMatch = String(dateVal).match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+                                        let jsDate;
+                                        if (dmyMatch) {
+                                            jsDate = new Date(`${dmyMatch[3]}-${dmyMatch[2].padStart(2,'0')}-${dmyMatch[1].padStart(2,'0')}`);
+                                        } else {
+                                            jsDate = new Date(dateVal);
+                                        }
                                         if (!isNaN(jsDate.getTime())) {
                                             seniorityDate = jsDate.toISOString();
                                         }
@@ -2360,9 +2434,10 @@
                         
                         if (employees.length > 0) {
                             this.state.employees = employees;
-                            employees.forEach(emp => {
-                                this.state.employeePasswords[emp.id] = emp.id;
-                            });
+                            // Hash all default passwords (employee ID) before storing
+                            await Promise.all(employees.map(async emp => {
+                                this.state.employeePasswords[emp.id] = await this._hashPassword(emp.id);
+                            }));
                             
                             this.saveState();
                             this.writeAuditLog('DATA_UPLOADED', { count: employees.length, year: this.state.biddingYear });
@@ -2373,15 +2448,15 @@
                                           `Positions found (${departmentsFound.length}):\n` +
                                           departmentsFound.join(', ');
                             
-                            alert(message);
+                            this.showToast(message, 'success');
                             this.renderUploadView();
                             this.renderLoginForm(); // Update login form with new IDs
                         } else {
-                            alert('⚠️ No valid employee data found in the file. Please check the format.');
+                            this.showToast('No valid employee data found in the file. Please check the format.', 'warn');
                         }
                     } catch (error) {
                         console.error('Error:', error);
-                        alert('Error processing Excel file. Please check the format and try again.');
+                        this.showToast('Error processing Excel file. Please check the format and try again.', 'error');
                     }
                 };
                 
@@ -3022,15 +3097,15 @@
 
             submitGCBid() {
                 if (this.state.isProcessed) {
-                    alert('Bidding has been processed. No more bids allowed.');
+                    this.showToast('Bidding has been processed. No more bids allowed.', 'warn');
                     return;
                 }
 
                 const gcUser = this.state.verifiedEmployee;
-                if (!gcUser) { alert('Please login first.'); return; }
+                if (!gcUser) { this.showToast('Please login first.', 'warn'); return; }
 
                 if (!window.gcSelectedSlot) {
-                    alert('Please select a slot type first.');
+                    this.showToast('Please select a slot type first.', 'warn');
                     return;
                 }
 
@@ -3038,18 +3113,18 @@
                 const endDate = document.getElementById('gcEndDate')?.value;
 
                 if (!startDate) {
-                    alert('Please select a start date.');
+                    this.showToast('Please select a start date.', 'warn');
                     return;
                 }
                 if (!endDate) {
-                    alert('Please select an end date.');
+                    this.showToast('Please select an end date.', 'warn');
                     return;
                 }
 
                 const days = Math.ceil(Math.abs(new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
 
                 if (days < 1) {
-                    alert('End date must be on or after start date.');
+                    this.showToast('End date must be on or after start date.', 'warn');
                     return;
                 }
 
@@ -3057,7 +3132,7 @@
                 if (window.gcSelectedSlot !== 'gcCustom') {
                     const slot = this.state.slotTypes.find(s => s.id === window.gcSelectedSlot);
                     if (slot && days !== slot.days) {
-                        alert(`${slot.name} requires exactly ${slot.days} days. Your selection is ${days} days.\n\nTo choose a free date range, select the "⭐ Custom" option instead.`);
+                        this.showToast(`${slot.name} requires exactly ${slot.days} days. Your selection is ${days} days. To choose a free date range, select the "⭐ Custom" option instead.`, 'warn');
                         return;
                     }
                 }
@@ -3066,7 +3141,7 @@
                 const gcBids = this.state.bids.filter(bid => bid.employeeId === gcUser.id);
                 for (const bid of gcBids) {
                     if (this.checkDateOverlap(startDate, endDate, bid.startDate, bid.endDate)) {
-                        alert(`Date overlap with an existing bid (${bid.startDate} → ${bid.endDate}). Please choose non-overlapping dates.`);
+                        this.showToast(`Date overlap with an existing bid (${bid.startDate} → ${bid.endDate}). Please choose non-overlapping dates.`, 'warn');
                         return;
                     }
                 }
@@ -3085,7 +3160,7 @@
                     }
                     if (conflictingOnCallDates.length > 0) {
                         const conflictList = conflictingOnCallDates.join(', ');
-                        alert(`⚠️ On-Call Conflict Detected!\n\nYour selected leave period (${startDate} → ${endDate}) overlaps with your scheduled On-Call duties on the following date${conflictingOnCallDates.length > 1 ? 's' : ''}:\n\n${conflictList}\n\nPlease choose dates that do not conflict with your On-Call schedule.`);
+                        this.showToast(`On-Call Conflict Detected! Your selected leave period (${startDate} → ${endDate}) overlaps with On-Call duties on: ${conflictList}. Please choose non-conflicting dates.`, 'warn');
                         return;
                     }
                 }
@@ -3116,13 +3191,13 @@
                     if (saved) console.log('✅ GC Bid saved to Supabase');
                 });
 
-                alert(`⭐ GC Bid placed!\n${slotLabel} — ${startDate} → ${endDate} (${days} day${days !== 1 ? 's' : ''})`);
+                this.showToast(`GC Bid placed! ${slotLabel} — ${startDate} → ${endDate} (${days} day${days !== 1 ? 's' : ''})`, 'success');
                 this.renderGoldenCommandBiddingView();
             },
 
             removeGCBid(slotType, startDate) {
                 if (this.state.isProcessed) {
-                    alert('Cannot remove bids after processing.');
+                    this.showToast('Cannot remove bids after processing.', 'warn');
                     return;
                 }
                 const gcUser = this.state.verifiedEmployee;
@@ -3192,6 +3267,7 @@
                                     { key: 'l456inm::' + uid, label: '📋 L456 INM' },
                                     { key: 'l3inm::' + uid,   label: '📋 L3 INM' },
                                     { key: 'l3tsm::' + uid,   label: '📋 L3 TSM' },
+                                    { key: 'hseq::' + uid,    label: '🔰 HSEQ' },
                                 ].filter(g => (this.state.onCallDates[g.key] || []).length > 0);
 
                                 if (deptGroups.length === 0) return '';
@@ -3443,6 +3519,7 @@
                     ...(this.state.onCallDates['l456inm::' + uid] || []),
                     ...(this.state.onCallDates['l3inm::' + uid] || []),
                     ...(this.state.onCallDates['l3tsm::' + uid] || []),
+                    ...(this.state.onCallDates['hseq::' + uid] || []),
                 ];
                 const onCallSet = new Set(allOnCall);
                 const startVal = document.getElementById('csStartDate')?.value;
@@ -3468,18 +3545,18 @@
             },
 
             submitCSBid() {
-                if (this.state.isProcessed) { alert('Bidding has been processed. No more bids.'); return; }
+                if (this.state.isProcessed) { this.showToast('Bidding has been processed. No more bids.', 'warn'); return; }
                 const csUser = this.state.verifiedEmployee;
                 if (!csUser) return;
-                if (!window.csSelectedSlot) { alert('⚠️ Please select a slot type first.'); return; }
+                if (!window.csSelectedSlot) { this.showToast('Please select a slot type first.', 'warn'); return; }
 
                 const startDate = document.getElementById('csStartDate')?.value;
                 let endDate = document.getElementById('csEndDate')?.value;
-                if (!startDate) { alert('⚠️ Please select a start date.'); return; }
+                if (!startDate) { this.showToast('Please select a start date.', 'warn'); return; }
 
                 if (window.csSelectedSlot === 'csCustom') {
-                    if (!endDate) { alert('⚠️ Please enter an end date for Custom slot.'); return; }
-                    if (endDate < startDate) { alert('⚠️ End date must be after start date.'); return; }
+                    if (!endDate) { this.showToast('Please enter an end date for Custom slot.', 'warn'); return; }
+                    if (endDate < startDate) { this.showToast('End date must be after start date.', 'warn'); return; }
                 }
 
                 const days = Math.round((new Date(endDate) - new Date(startDate)) / 86400000) + 1;
@@ -3487,7 +3564,7 @@
                 if (window.csSelectedSlot !== 'csCustom') {
                     const slot = this.state.slotTypes.find(s => s.id === window.csSelectedSlot);
                     if (slot && days !== slot.days) {
-                        alert(`${slot.name} requires exactly ${slot.days} days. Select "Custom" for free range.`);
+                        this.showToast(`${slot.name} requires exactly ${slot.days} days. Select "Custom" for free range.`, 'warn');
                         return;
                     }
                 }
@@ -3496,7 +3573,7 @@
                 const csBids = this.state.bids.filter(bid => bid.employeeId === csUser.id);
                 for (const bid of csBids) {
                     if (this.checkDateOverlap(startDate, endDate, bid.startDate, bid.endDate)) {
-                        alert(`Date overlap with an existing bid (${bid.startDate} → ${bid.endDate}).`);
+                        this.showToast(`Date overlap with an existing bid (${bid.startDate} → ${bid.endDate}).`, 'warn');
                         return;
                     }
                 }
@@ -3508,6 +3585,7 @@
                     ...(this.state.onCallDates['l456inm::' + uid] || []),
                     ...(this.state.onCallDates['l3inm::' + uid] || []),
                     ...(this.state.onCallDates['l3tsm::' + uid] || []),
+                    ...(this.state.onCallDates['hseq::' + uid] || []),
                 ]);
                 const onCallDatesForCS = allOnCallForCS;
                 if (onCallDatesForCS.size > 0) {
@@ -3521,7 +3599,7 @@
                     }
                     if (conflictingOnCallDates.length > 0) {
                         const conflictList = conflictingOnCallDates.join(', ');
-                        alert(`⚠️ On-Call Conflict Detected!\n\nYour selected leave period (${startDate} → ${endDate}) overlaps with your scheduled On-Call duties on the following date${conflictingOnCallDates.length > 1 ? 's' : ''}:\n\n${conflictList}\n\nPlease choose dates that do not conflict with your On-Call schedule.`);
+                        this.showToast(`On-Call Conflict Detected! Your selected leave period (${startDate} → ${endDate}) overlaps with On-Call duties on: ${conflictList}. Please choose non-conflicting dates.`, 'warn');
                         return;
                     }
                 }
@@ -3549,12 +3627,12 @@
                     if (saved) console.log('✅ CS Bid saved to Supabase');
                 });
 
-                alert(`🏢 Corporate Staff Bid placed!\n${slotLabel} — ${startDate} → ${endDate} (${days} day${days !== 1 ? 's' : ''})`);
+                this.showToast(`Corporate Staff Bid placed! ${slotLabel} — ${startDate} → ${endDate} (${days} day${days !== 1 ? 's' : ''})`, 'success');
                 this.renderCorporateStaffBiddingView();
             },
 
             removeCSBid(slotType, startDate) {
-                if (this.state.isProcessed) { alert('Cannot remove bids after processing.'); return; }
+                if (this.state.isProcessed) { this.showToast('Cannot remove bids after processing.', 'warn'); return; }
                 const csUser = this.state.verifiedEmployee;
                 if (confirm('Remove this Corporate Staff bid?')) {
                     const idx = this.state.bids.findIndex(bid =>
@@ -3909,7 +3987,7 @@
                     let value;
                     if (field === 'capacity') {
                         value = parseInt(input.value);
-                        if (isNaN(value)) value = 1; // default capacity = 1
+                        if (isNaN(value) || value < 0) value = 0; // clamp invalid/negative to 0
                     } else if (field === 'enabled') {
                         value = input.checked; // boolean
                     } else {
@@ -3931,7 +4009,7 @@
                     // saveConfigToSupabase above already handles this — no duplicate upsert needed
                 }
                 
-                alert(`✅ Slot configurations saved!\n\n• ${savedCount} fields saved.\n• Each department now has Slot A, B, C configured per month (Jan–Dec).`);
+                this.showToast(`Slot configurations saved! • ${savedCount} fields saved. Each department now has Slot A, B, C configured per month (Jan–Dec).`, 'success');
                 
                 this.setActiveView('admin');
             },
@@ -3998,7 +4076,7 @@
 
             async refreshBidsFromSupabase(silent = false) {
                 if (!this.supabase) {
-                    if (!silent) alert('⚠️ Not connected to database.');
+                    if (!silent) this.showToast('Not connected to database.', 'warn');
                     return false;
                 }
                 if (!silent) this.updateSystemStatus('Refreshing bids...');
@@ -4047,7 +4125,7 @@
                 } catch (e) {
                     console.error('Refresh bids error:', e);
                     this.updateSystemStatus('⚠️ Refresh failed');
-                    if (!silent) alert('Failed to refresh bids: ' + e.message);
+                    if (!silent) this.showToast('Failed to refresh bids: ' + e.message, 'error');
                     return false;
                 }
             },
@@ -4078,7 +4156,8 @@
                 const l456   = (this.state.l456InmUsers        || []).map(u => u.id);
                 const l3Inm  = (this.state.l3InmUsers          || []).map(u => u.id);
                 const l3Tsm  = (this.state.l3TsmUsers          || []).map(u => u.id);
-                const allSpecial = [...gcIds, ...csIds, ...l456, ...l3Inm, ...l3Tsm];
+                const hseq   = (this.state.hseqUsers           || []).map(u => u.id);
+                const allSpecial = [...gcIds, ...csIds, ...l456, ...l3Inm, ...l3Tsm, ...hseq];
                 return allSpecial.includes(employeeId);
             },
 
@@ -4196,14 +4275,14 @@
                                     return `
                                         <tr class="${idx % 2 === 0 ? '' : 'bg-gray-50'} hover:bg-indigo-50 transition-colors">
                                             <td class="border border-gray-200 px-3 py-2 text-gray-500 text-center">${idx + 1}</td>
-                                            <td class="border border-gray-200 px-3 py-2 font-mono text-xs text-gray-700">${bid.employeeId}</td>
-                                            <td class="border border-gray-200 px-3 py-2 font-semibold text-gray-800">${bid.employeeName || emp?.name || 'Unknown'}</td>
-                                            <td class="border border-gray-200 px-3 py-2 text-gray-600">${bid.position || emp?.position || bid.department || emp?.department || 'Unassigned'}</td>
-                                            <td class="border border-gray-200 px-3 py-2"><span class="px-2 py-1 rounded text-xs font-semibold ${slotColor}">${slotDisplay}</span></td>
-                                            <td class="border border-gray-200 px-3 py-2 text-gray-700">${bid.startDate || '—'}</td>
-                                            <td class="border border-gray-200 px-3 py-2 text-gray-700">${bid.endDate || '—'}</td>
-                                            <td class="border border-gray-200 px-3 py-2 text-center font-semibold text-gray-800">${bid.days || '—'}</td>
-                                            <td class="border border-gray-200 px-3 py-2 text-xs text-gray-500">${submitted}</td>
+                                            <td class="border border-gray-200 px-3 py-2 font-mono text-xs text-gray-700">${this._escHtml(bid.employeeId)}</td>
+                                            <td class="border border-gray-200 px-3 py-2 font-semibold text-gray-800">${this._escHtml(bid.employeeName || emp?.name || 'Unknown')}</td>
+                                            <td class="border border-gray-200 px-3 py-2 text-gray-600">${this._escHtml(bid.position || emp?.position || bid.department || emp?.department || 'Unassigned')}</td>
+                                            <td class="border border-gray-200 px-3 py-2"><span class="px-2 py-1 rounded text-xs font-semibold ${slotColor}">${this._escHtml(slotDisplay)}</span></td>
+                                            <td class="border border-gray-200 px-3 py-2 text-gray-700">${this._escHtml(bid.startDate || '—')}</td>
+                                            <td class="border border-gray-200 px-3 py-2 text-gray-700">${this._escHtml(bid.endDate || '—')}</td>
+                                            <td class="border border-gray-200 px-3 py-2 text-center font-semibold text-gray-800">${this._escHtml(String(bid.days || '—'))}</td>
+                                            <td class="border border-gray-200 px-3 py-2 text-xs text-gray-500">${this._escHtml(submitted)}</td>
                                             <td class="border border-gray-200 px-3 py-2 text-center">
                                                 <button onclick="app.adminDeleteBid('${safeId}','${safeSlot}','${safeStart}')"
                                                     class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-semibold hover:bg-red-200">
@@ -4271,7 +4350,7 @@
                 }
 
                 this._liveUpdateAdminPanel();
-                alert('✅ All bids have been deleted.');
+                this.showToast('All bids have been deleted.', 'success');
             },
 
             async startAdminPolling() {
@@ -4442,33 +4521,33 @@
                 `;
             },
 
-            addGCUser() {
+            async addGCUser() {
                 const id = document.getElementById('newGCId')?.value?.trim();
                 const name = document.getElementById('newGCName')?.value?.trim();
                 const password = document.getElementById('newGCPassword')?.value?.trim();
-                
+
                 if (!id || !name) {
-                    alert('Please enter both a GC ID and a name.');
+                    this.showToast('Please enter both a GC ID and a name.', 'warn');
                     return;
                 }
-                
+
                 const existing = (this.state.goldenCommandUsers || []).find(u => u.id === id);
                 if (existing) {
-                    alert(`GC ID "${id}" already exists.`);
+                    this.showToast(`GC ID "${id}" already exists.`, 'warn');
                     return;
                 }
-                
+
                 if (!this.state.goldenCommandUsers) this.state.goldenCommandUsers = [];
-                
+
                 this.state.goldenCommandUsers.push({
                     id: id,
                     name: name,
-                    password: password || id
+                    password: await this._hashPassword(password || id)
                 });
                 
                 this.saveState();
                 this.saveGCUsersToSupabase();
-                alert(`✅ Golden Command user "${name}" (ID: ${id}) added and saved to database!`);
+                this.showToast(`Golden Command user "${name}" (ID: ${id}) added and saved to database!`, 'success');
                 this.renderUploadView();
             },
 
@@ -4485,33 +4564,33 @@
                 }
             },
 
-            addCSUser() {
+            async addCSUser() {
                 const id = document.getElementById('newCSId')?.value?.trim();
                 const name = document.getElementById('newCSName')?.value?.trim();
                 const password = document.getElementById('newCSPassword')?.value?.trim();
                 
                 if (!id || !name) {
-                    alert('Please enter both a Staff ID and a name.');
+                    this.showToast('Please enter both a Staff ID and a name.', 'warn');
                     return;
                 }
-                
+
                 const existing = (this.state.corporateStaffUsers || []).find(u => u.id === id);
                 if (existing) {
-                    alert(`Staff ID "${id}" already exists.`);
+                    this.showToast(`Staff ID "${id}" already exists.`, 'warn');
                     return;
                 }
-                
+
                 if (!this.state.corporateStaffUsers) this.state.corporateStaffUsers = [];
-                
+
                 this.state.corporateStaffUsers.push({
                     id: id,
                     name: name,
-                    password: password || id
+                    password: await this._hashPassword(password || id)
                 });
                 
                 this.saveState();
                 this.saveCorporateStaffUsersToSupabase();
-                alert(`✅ Corporate Staff user "${name}" (ID: ${id}) added and saved to database!`);
+                this.showToast(`Corporate Staff user "${name}" (ID: ${id}) added and saved to database!`, 'success');
                 this.renderUploadView();
             },
 
@@ -4528,16 +4607,16 @@
                 }
             },
 
-            addL456InmUser() {
+            async addL456InmUser() {
                 const id = document.getElementById('newL456InmId')?.value?.trim();
                 const name = document.getElementById('newL456InmName')?.value?.trim();
-                if (!id || !name) { alert('Please enter both a Staff ID and a name.'); return; }
+                if (!id || !name) { this.showToast('Please enter both a Staff ID and a name.', 'warn'); return; }
                 if (!this.state.l456InmUsers) this.state.l456InmUsers = [];
-                if (this.state.l456InmUsers.find(u => u.id === id)) { alert(`Staff ID "${id}" already exists.`); return; }
-                this.state.l456InmUsers.push({ id, name });
+                if (this.state.l456InmUsers.find(u => u.id === id)) { this.showToast(`Staff ID "${id}" already exists.`, 'warn'); return; }
+                this.state.l456InmUsers.push({ id, name, password: await this._hashPassword(id) });
                 this.saveState();
                 this.saveSubGroupUsersToSupabase('l456inm'); // persist to Supabase
-                alert(`✅ L456 INM user "${name}" (ID: ${id}) added!`);
+                this.showToast(`L456 INM user "${name}" (ID: ${id}) added!`, 'success');
                 this.renderUploadView();
             },
 
@@ -4553,16 +4632,16 @@
                 }
             },
 
-            addL3InmUser() {
+            async addL3InmUser() {
                 const id = document.getElementById('newL3InmId')?.value?.trim();
                 const name = document.getElementById('newL3InmName')?.value?.trim();
-                if (!id || !name) { alert('Please enter both a Staff ID and a name.'); return; }
+                if (!id || !name) { this.showToast('Please enter both a Staff ID and a name.', 'warn'); return; }
                 if (!this.state.l3InmUsers) this.state.l3InmUsers = [];
-                if (this.state.l3InmUsers.find(u => u.id === id)) { alert(`Staff ID "${id}" already exists.`); return; }
-                this.state.l3InmUsers.push({ id, name });
+                if (this.state.l3InmUsers.find(u => u.id === id)) { this.showToast(`Staff ID "${id}" already exists.`, 'warn'); return; }
+                this.state.l3InmUsers.push({ id, name, password: await this._hashPassword(id) });
                 this.saveState();
                 this.saveSubGroupUsersToSupabase('l3inm'); // persist to Supabase
-                alert(`✅ L3 INM user "${name}" (ID: ${id}) added!`);
+                this.showToast(`L3 INM user "${name}" (ID: ${id}) added!`, 'success');
                 this.renderUploadView();
             },
 
@@ -4578,16 +4657,16 @@
                 }
             },
 
-            addL3TsmUser() {
+            async addL3TsmUser() {
                 const id = document.getElementById('newL3TsmId')?.value?.trim();
                 const name = document.getElementById('newL3TsmName')?.value?.trim();
-                if (!id || !name) { alert('Please enter both a Staff ID and a name.'); return; }
+                if (!id || !name) { this.showToast('Please enter both a Staff ID and a name.', 'warn'); return; }
                 if (!this.state.l3TsmUsers) this.state.l3TsmUsers = [];
-                if (this.state.l3TsmUsers.find(u => u.id === id)) { alert(`Staff ID "${id}" already exists.`); return; }
-                this.state.l3TsmUsers.push({ id, name });
+                if (this.state.l3TsmUsers.find(u => u.id === id)) { this.showToast(`Staff ID "${id}" already exists.`, 'warn'); return; }
+                this.state.l3TsmUsers.push({ id, name, password: await this._hashPassword(id) });
                 this.saveState();
                 this.saveSubGroupUsersToSupabase('l3tsm'); // persist to Supabase
-                alert(`✅ L3 TSM user "${name}" (ID: ${id}) added!`);
+                this.showToast(`L3 TSM user "${name}" (ID: ${id}) added!`, 'success');
                 this.renderUploadView();
             },
 
@@ -4598,7 +4677,32 @@
                 if (confirm(`Remove L3 TSM user "${user.name}" (${user.id})?`)) {
                     this.state.l3TsmUsers.splice(index, 1);
                     this.saveState();
-                    this.saveSubGroupUsersToSupabase('l3tsm'); // persist to Supabase
+                    this.saveSubGroupUsersToSupabase('l3tsm');
+                    this.renderUploadView();
+                }
+            },
+
+            async addHseqUser() {
+                const id = document.getElementById('newHseqId')?.value?.trim();
+                const name = document.getElementById('newHseqName')?.value?.trim();
+                if (!id || !name) { this.showToast('Please enter both a Staff ID and a name.', 'warn'); return; }
+                if (!this.state.hseqUsers) this.state.hseqUsers = [];
+                if (this.state.hseqUsers.find(u => u.id === id)) { this.showToast(`Staff ID "${id}" already exists.`, 'warn'); return; }
+                this.state.hseqUsers.push({ id, name, password: await this._hashPassword(id) });
+                this.saveState();
+                this.saveSubGroupUsersToSupabase('hseq');
+                this.showToast(`HSEQ user "${name}" (ID: ${id}) added!`, 'success');
+                this.renderUploadView();
+            },
+
+            removeHseqUser(index) {
+                const users = this.state.hseqUsers || [];
+                if (index < 0 || index >= users.length) return;
+                const user = users[index];
+                if (confirm(`Remove HSEQ user "${user.name}" (${user.id})?`)) {
+                    this.state.hseqUsers.splice(index, 1);
+                    this.saveState();
+                    this.saveSubGroupUsersToSupabase('hseq');
                     this.renderUploadView();
                 }
             },
@@ -4689,6 +4793,7 @@
                     { key: 'l456inm', table: 'l456inm_users', stateKey: 'l456InmUsers' },
                     { key: 'l3inm',   table: 'l3inm_users',   stateKey: 'l3InmUsers'   },
                     { key: 'l3tsm',   table: 'l3tsm_users',   stateKey: 'l3TsmUsers'   },
+                    { key: 'hseq',    table: 'hseq_users',    stateKey: 'hseqUsers'    },
                 ];
                 const toSave = groupKey
                     ? allGroups.filter(g => g.key === groupKey)
@@ -4726,12 +4831,12 @@
             // ==================== OTHER FUNCTIONS ====================
             async processBids() {
                 if (this.state.employees.length === 0) {
-                    alert('No employees to process. Please upload data first.');
+                    this.showToast('No employees to process. Please upload data first.', 'warn');
                     return;
                 }
                 
                 if (Object.keys(this.state.slotCapacities).length === 0) {
-                    alert('Please configure slot capacities first in "Configure Slots".');
+                    this.showToast('Please configure slot capacities first in "Configure Slots".', 'warn');
                     this.setActiveView('configureSlots');
                     return;
                 }
@@ -5214,13 +5319,13 @@
                                `• Each employee received exactly 2 slots\n` +
                                `• Total leave days allocated: ${slotAssignments.reduce((sum, r) => sum + r.days, 0)}`;
                 
-                alert(message);
-                
+                this.showToast(message, 'success');
+
                 this.renderAdminView();
             },
             exportResults() {
                 if (this.state.results.length === 0) {
-                    alert('No results to export');
+                    this.showToast('No results to export.', 'warn');
                     return;
                 }
                 
@@ -5259,7 +5364,7 @@
                 XLSX.utils.book_append_sheet(wb, ws, 'Leave Assignments');
                 XLSX.writeFile(wb, `Leave_Assignments_${this.state.biddingYear}.xlsx`);
                 
-                alert('✅ Results exported to Excel file!');
+                this.showToast('Results exported to Excel file!', 'success');
             },
 
             // ==================== EMAIL SETTINGS (Admin Only) ====================
@@ -5390,7 +5495,7 @@
                     this.updateSystemStatus('System reset');
                     this.renderLoginForm();
                     
-                    alert('✅ System has been completely reset!');
+                    this.showToast('System has been completely reset!', 'success');
                 }
             },
 
@@ -5705,19 +5810,19 @@
 
             submitBid() {
                 if (!this.state.verifiedEmployee) {
-                    alert('Please login first');
+                    this.showToast('Please login first', 'warn');
                     return;
                 }
 
                 if (this.state.isProcessed) {
-                    alert('Bidding has been processed. No more bids allowed.');
+                    this.showToast('Bidding has been processed. No more bids allowed.', 'warn');
                     return;
                 }
 
                 // Use configured slot definition
                 const slotDef = window.selectedSlotDef;
                 if (!slotDef) {
-                    alert('Please select an available slot first.');
+                    this.showToast('Please select an available slot first.', 'warn');
                     return;
                 }
 
@@ -5728,7 +5833,7 @@
                 const month = monthSelect ? monthSelect.value : this.state.months[0];
 
                 if (!startDate || !endDate) {
-                    alert('Slot has no configured dates. Please contact the planner.');
+                    this.showToast('Slot has no configured dates. Please contact the planner.', 'warn');
                     return;
                 }
 
@@ -5740,7 +5845,7 @@
                 );
                 
                 if (existingBid) {
-                    alert(`You have already placed a bid for this slot (${startDate} to ${endDate}).`);
+                    this.showToast(`You have already placed a bid for this slot (${startDate} to ${endDate}).`, 'warn');
                     return;
                 }
 
@@ -5769,7 +5874,7 @@
                 // Enforce max 2 bids per calendar month (no cap on total preferences)
                 const bidsThisMonth = userBids.filter(bid => bid.month === month);
                 if (bidsThisMonth.length >= 2) {
-                    alert(`You have already placed 2 bids for ${month}. Maximum of 2 bids are allowed per month.\n\nYou may still bid in other months.`);
+                    this.showToast(`You have already placed 2 bids for ${month}. Maximum of 2 bids are allowed per month. You may still bid in other months.`, 'warn');
                     return;
                 }
 
@@ -5780,7 +5885,7 @@
                 // Check for date overlaps with existing bids
                 for (const bid of userBids) {
                     if (this.checkDateOverlap(startDate, endDate, bid.startDate, bid.endDate)) {
-                        alert(`Date overlap detected with your existing bid (${bid.startDate} to ${bid.endDate})`);
+                        this.showToast(`Date overlap detected with your existing bid (${bid.startDate} to ${bid.endDate})`, 'warn');
                         return;
                     }
                 }
@@ -5879,10 +5984,10 @@
 
             removeBid(employeeId, slotType, startDate) {
                 if (this.state.isProcessed) {
-                    alert('Cannot remove bids after processing');
+                    this.showToast('Cannot remove bids after processing', 'warn');
                     return;
                 }
-                
+
                 if (confirm('Are you sure you want to remove this bid?')) {
                     this.state.bids = this.state.bids.filter(bid => 
                         !(bid.employeeId === employeeId && 
@@ -6030,7 +6135,7 @@
             },
 
             previewSlot(slotId) {
-                alert(`Previewing slot #${slotId}. In a real application, this would show detailed information about the selected slot.`);
+                this.showToast(`Previewing slot #${slotId}...`, 'info');
             },
 
             renderMyResultsView() {
@@ -6349,7 +6454,7 @@
                     storedPass = this.state.employeePasswords[userId] || userId;
                 }
 
-                if (current !== storedPass) {
+                if (!await this._verifyPassword(current, storedPass)) {
                     showMsg('❌ Current password is incorrect.', 'bg-red-50 border-red-300 text-red-700');
                     return;
                 }
@@ -6362,41 +6467,33 @@
                     return;
                 }
 
+                const hashedNew = await this._hashPassword(newPass);
+
                 try {
                     if (userType === 'goldencommand') {
-                        // Update in Supabase golden_command_users table
                         if (this.supabase) {
                             const { error } = await this.supabase
                                 .from('golden_command_users')
-                                .update({ password: newPass })
+                                .update({ password: hashedNew })
                                 .eq('id', userId);
                             if (error) throw error;
                         }
-                        // Update local state
                         const gcUser = (this.state.goldenCommandUsers || []).find(u => u.id === userId);
-                        if (gcUser) gcUser.password = newPass;
+                        if (gcUser) gcUser.password = hashedNew;
                     } else if (userType === 'corporatestaff') {
-                        // Update in Supabase corporate_staff_users table
                         if (this.supabase) {
                             const { error } = await this.supabase
                                 .from('corporate_staff_users')
-                                .update({ password: newPass })
+                                .update({ password: hashedNew })
                                 .eq('id', userId);
                             if (error) throw error;
                         }
-                        // Update local state
                         const csUser = (this.state.corporateStaffUsers || []).find(u => u.id === userId);
-                        if (csUser) csUser.password = newPass;
+                        if (csUser) csUser.password = hashedNew;
                     } else {
-                        // Employee: update local state + employeePasswords
-                        this.state.employeePasswords[userId] = newPass;
-                        // Also update the employees table password column if it exists
+                        this.state.employeePasswords[userId] = hashedNew;
                         if (this.supabase) {
-                            const { error } = await this.supabase
-                                .from('employees')
-                                .update({ password: newPass })
-                                .eq('id', userId);
-                            // ignore error if column doesn't exist
+                            await this.supabase.from('employees').update({ password: hashedNew }).eq('id', userId);
                         }
                     }
 
@@ -6475,6 +6572,15 @@
                 content.innerHTML = `
                     <div class="max-w-6xl mx-auto space-y-6">
                         <h2 class="text-2xl font-bold text-gray-800">📊 Planner Dashboard — ${this.state.biddingYear}</h2>
+
+                        ${this.state.plannerPassword === 'admin123' ? `
+                        <div style="background:#fef3c7;border:1.5px solid #f59e0b;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:1.25rem;">⚠️</span>
+                            <p style="margin:0;color:#92400e;font-size:0.875rem;font-weight:500;">
+                                <strong>Security warning:</strong> You are using the default planner password (<code>admin123</code>).
+                                Please change it in <strong>Admin → Security Settings</strong> before going live.
+                            </p>
+                        </div>` : ''}
 
                         <!-- Top KPI Cards -->
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -6791,7 +6897,7 @@
 
             saveOverride(empId, slotOrder) {
                 const idx = this.state.results.findIndex(r => r.employeeId === empId && r.slotOrder === slotOrder);
-                if (idx === -1) { alert('Result not found'); return; }
+                if (idx === -1) { this.showToast('Result not found.', 'warn'); return; }
                 this.state.results[idx].slotName  = document.getElementById(`ov-slotName-${empId}-${slotOrder}`)?.value || this.state.results[idx].slotName;
                 this.state.results[idx].startDate = document.getElementById(`ov-start-${empId}-${slotOrder}`)?.value || this.state.results[idx].startDate;
                 this.state.results[idx].endDate   = document.getElementById(`ov-end-${empId}-${slotOrder}`)?.value   || this.state.results[idx].endDate;
@@ -6901,6 +7007,10 @@
                       headColor:'#134e4a', rowBg:'#f0fdfa', borderColor:'#5eead4', badgeBg:'#ccfbf1',
                       formBg:'#f0fdfa', btnColor:'#14b8a6',
                       idPlaceholder:'L3TSM-001', namePlaceholder:'Sam Lee' },
+                    { key:'hseq',    stateKey:'hseqUsers',           label:'HSEQ',            icon:'🔰',
+                      headColor:'#881337', rowBg:'#fff1f2', borderColor:'#fda4af', badgeBg:'#ffe4e6',
+                      formBg:'#fff1f2', btnColor:'#f43f5e',
+                      idPlaceholder:'HSEQ-001', namePlaceholder:'Jordan Lee' },
                 ];
 
                 const tabs = groups.map(g => `
@@ -6928,27 +7038,27 @@
             },
 
             // Add a user to a group from the Manage Users view
-            _muAddUser(groupKey) {
+            async _muAddUser(groupKey) {
                 const idEl   = document.getElementById('muId-'   + groupKey);
                 const nameEl = document.getElementById('muName-' + groupKey);
                 const pwEl   = document.getElementById('muPw-'   + groupKey);
                 const id     = idEl?.value?.trim();
                 const name   = nameEl?.value?.trim();
                 const pw     = pwEl?.value?.trim();
-                if (!id || !name) { alert('Please enter both a Staff ID and a name.'); return; }
+                if (!id || !name) { this.showToast('Please enter both a Staff ID and a name.', 'warn'); return; }
 
-                const stateKeyMap = { cs:'corporateStaffUsers', l456inm:'l456InmUsers', l3inm:'l3InmUsers', l3tsm:'l3TsmUsers' };
+                const stateKeyMap = { cs:'corporateStaffUsers', l456inm:'l456InmUsers', l3inm:'l3InmUsers', l3tsm:'l3TsmUsers', hseq:'hseqUsers' };
                 const stateKey = stateKeyMap[groupKey];
                 if (!stateKey) return;
 
                 if (!this.state[stateKey]) this.state[stateKey] = [];
                 if (this.state[stateKey].find(u => u.id === id)) {
-                    alert(`Staff ID "${id}" already exists in this group.`); return;
+                    this.showToast(`Staff ID "${id}" already exists in this group.`, 'warn'); return;
                 }
-                this.state[stateKey].push({ id, name, password: pw || id });
+                const hashedPw = await this._hashPassword(pw || id);
+                this.state[stateKey].push({ id, name, password: hashedPw });
                 this.saveState();
 
-                // Persist to the correct Supabase table — pass groupKey to save ONLY this group
                 if (groupKey === 'cs') this.saveCorporateStaffUsersToSupabase();
                 else this.saveSubGroupUsersToSupabase(groupKey);
 
@@ -6957,7 +7067,7 @@
 
             // Remove a user from a group from the Manage Users view
             _muRemoveUser(groupKey, index) {
-                const stateKeyMap = { cs:'corporateStaffUsers', l456inm:'l456InmUsers', l3inm:'l3InmUsers', l3tsm:'l3TsmUsers' };
+                const stateKeyMap = { cs:'corporateStaffUsers', l456inm:'l456InmUsers', l3inm:'l3InmUsers', l3tsm:'l3TsmUsers', hseq:'hseqUsers' };
                 const stateKey = stateKeyMap[groupKey];
                 if (!stateKey) return;
                 const users = this.state[stateKey] || [];
@@ -6982,6 +7092,7 @@
                 const l456InmUsers = this.state.l456InmUsers || [];
                 const l3InmUsers   = this.state.l3InmUsers   || [];
                 const l3TsmUsers   = this.state.l3TsmUsers   || [];
+                const hseqUsers    = this.state.hseqUsers    || [];
 
                 if (!window._ocTab) window._ocTab = 'gc';
 
@@ -6991,6 +7102,7 @@
                     const l456 = l456InmUsers.find(u => u.id === id); if (l456) return l456.name;
                     const l3inm = l3InmUsers.find(u => u.id === id); if (l3inm) return l3inm.name;
                     const l3tsm = l3TsmUsers.find(u => u.id === id); if (l3tsm) return l3tsm.name;
+                    const hseqU = hseqUsers.find(u => u.id === id); if (hseqU) return hseqU.name;
                     const emp = (this.state.employees || []).find(e => e.id === id); if (emp) return emp.name;
                     return id;
                 };
@@ -7070,31 +7182,37 @@
                                     : colorTheme === 'orange' ? 'bg-orange-50 border-orange-300 text-orange-800'
                                     : colorTheme === 'purple' ? 'bg-purple-50 border-purple-300 text-purple-800'
                                     : colorTheme === 'teal'   ? 'bg-teal-50 border-teal-300 text-teal-800'
+                                    : colorTheme === 'rose'   ? 'bg-rose-50 border-rose-300 text-rose-800'
                                     : 'bg-blue-50 border-blue-300 text-blue-800';
                     const btnCol    = isGCPanel ? 'bg-yellow-500 hover:bg-yellow-600'
                                     : colorTheme === 'orange' ? 'bg-orange-500 hover:bg-orange-600'
                                     : colorTheme === 'purple' ? 'bg-purple-500 hover:bg-purple-600'
                                     : colorTheme === 'teal'   ? 'bg-teal-500 hover:bg-teal-600'
+                                    : colorTheme === 'rose'   ? 'bg-rose-500 hover:bg-rose-600'
                                     : 'bg-blue-600 hover:bg-blue-700';
                     const inputBdr  = isGCPanel ? 'border-yellow-300 focus:border-yellow-500'
                                     : colorTheme === 'orange' ? 'border-orange-300 focus:border-orange-500'
                                     : colorTheme === 'purple' ? 'border-purple-300 focus:border-purple-500'
                                     : colorTheme === 'teal'   ? 'border-teal-300 focus:border-teal-500'
+                                    : colorTheme === 'rose'   ? 'border-rose-300 focus:border-rose-500'
                                     : 'border-blue-300 focus:border-blue-500';
                     const prevBg    = isGCPanel ? 'bg-yellow-100 border-yellow-200'
                                     : colorTheme === 'orange' ? 'bg-orange-100 border-orange-200'
                                     : colorTheme === 'purple' ? 'bg-purple-100 border-purple-200'
                                     : colorTheme === 'teal'   ? 'bg-teal-100 border-teal-200'
+                                    : colorTheme === 'rose'   ? 'bg-rose-100 border-rose-200'
                                     : 'bg-blue-100 border-blue-200';
                     const cardBorder = isGCPanel ? 'border-yellow-200'
                                     : colorTheme === 'orange' ? 'border-orange-200'
                                     : colorTheme === 'purple' ? 'border-purple-200'
                                     : colorTheme === 'teal'   ? 'border-teal-200'
+                                    : colorTheme === 'rose'   ? 'border-rose-200'
                                     : 'border-blue-200';
                     const pfx       = isGCPanel ? 'gc'
                                     : colorTheme === 'orange' ? 'l456inm'
                                     : colorTheme === 'purple' ? 'l3inm'
                                     : colorTheme === 'teal'   ? 'l3tsm'
+                                    : colorTheme === 'rose'   ? 'hseq'
                                     : 'cs';
                     const dateChips = dates.length === 0
                         ? '<p class="text-sm text-gray-400 italic">No On-Call dates assigned.</p>'
@@ -7298,11 +7416,13 @@
                 const l456Ids  = new Set([...l456InmUsers.map(u => u.id),  ...Object.keys(onCallDates).filter(k => k.startsWith('l456inm::')).map(k => k.split('::')[1])]);
                 const l3InmIds = new Set([...l3InmUsers.map(u => u.id),    ...Object.keys(onCallDates).filter(k => k.startsWith('l3inm::')).map(k => k.split('::')[1])]);
                 const l3TsmIds = new Set([...l3TsmUsers.map(u => u.id),    ...Object.keys(onCallDates).filter(k => k.startsWith('l3tsm::')).map(k => k.split('::')[1])]);
+                const hseqIds  = new Set([...hseqUsers.map(u => u.id),     ...Object.keys(onCallDates).filter(k => k.startsWith('hseq::')).map(k => k.split('::')[1])]);
                 const gcAudit    = buildAudit([...gcIds]);
                 const csAudit    = buildAudit([...csIds]);
                 const l456Audit  = buildAudit([...l456Ids],  'l456inm');
                 const l3InmAudit = buildAudit([...l3InmIds], 'l3inm');
                 const l3TsmAudit = buildAudit([...l3TsmIds], 'l3tsm');
+                const hseqAudit  = buildAudit([...hseqIds],  'hseq');
                 const isGC = window._ocTab === 'gc';
 
                 content.innerHTML = `
@@ -7405,6 +7525,22 @@
                             </div>
                         </div>
 
+                        <!-- HSEQ group — separate On-Call schedule -->
+                        <div class="mb-8">
+                            <div class="flex items-center gap-2 mb-4 pb-2 border-b-2 border-rose-200">
+                                <span class="text-xl">🔰</span>
+                                <h3 class="text-lg font-bold text-rose-800">HSEQ</h3>
+                            </div>
+                            ${renderAuditBanner(hseqAudit)}
+                            ${renderDeptPanel('hseq', hseqUsers, false, 'HSEQ', '🔰', hseqAudit)}
+                            <div id="onCallStaffList-hseq">
+                                ${hseqIds.size === 0
+                                    ? '<p class="text-center text-gray-400 py-8">No HSEQ users. Add them in 👥 Manage Users first.</p>'
+                                    : [...hseqIds].filter(id => (onCallDates['hseq::'+id]||[]).length > 0).map(id => renderCard(id, hseqAudit.dateOwners, false, 'rose', 'hseq')).join('') || '<p class="text-center text-gray-400 py-4 text-sm italic">No staff assigned to On-Call yet.</p>'
+                                }
+                            </div>
+                        </div>
+
                     </div>
                 </div>`;
             },
@@ -7413,7 +7549,7 @@
                 const empId   = document.getElementById('newOcId-' + pfx)?.value?.trim();
                 const dateFrom = document.getElementById('newOcFrom-' + pfx)?.value;
                 const dateTo   = document.getElementById('newOcTo-'   + pfx)?.value;
-                if (!empId) { alert('⚠️ Please select a staff member first.'); return; }
+                if (!empId) { this.showToast('Please select a staff member first.', 'warn'); return; }
                 const ocKey = (pfx === 'gc' || pfx === 'cs') ? empId : pfx + '::' + empId;
                 this._applyOnCallRange(ocKey, dateFrom, dateTo);
                 setTimeout(() => this._ocSelectStaff(empId, pfx), 200);
@@ -7423,8 +7559,8 @@
                 const empId   = document.getElementById('newOcId-' + pfx)?.value?.trim();
                 const weekNum = parseInt(document.getElementById('newOcWeekNum-' + pfx)?.value);
                 const yr      = parseInt(document.getElementById('newOcWeekYear-' + pfx)?.value) || this.state.biddingYear;
-                if (!empId) { alert('⚠️ Please select a staff member first.'); return; }
-                if (!weekNum || weekNum < 1 || weekNum > 52) { alert('⚠️ Enter a valid week (1–52).'); return; }
+                if (!empId) { this.showToast('Please select a staff member first.', 'warn'); return; }
+                if (!weekNum || weekNum < 1 || weekNum > 52) { this.showToast('Enter a valid week (1–52).', 'warn'); return; }
                 const ocKey = (pfx === 'gc' || pfx === 'cs') ? empId : pfx + '::' + empId;
                 const r = this.weekNumberToDateRange(weekNum, yr);
                 this._applyOnCallRange(ocKey, r.from, r.to);
@@ -7435,7 +7571,7 @@
                 const empId = document.getElementById('newOcId-' + pfx)?.value?.trim();
                 const raw   = document.getElementById('newOcMultiInput-' + pfx)?.value || '';
                 const yr    = parseInt(document.getElementById('newOcMultiYear-' + pfx)?.value) || this.state.biddingYear;
-                if (!empId) { alert('⚠️ Please select a staff member first.'); return; }
+                if (!empId) { this.showToast('Please select a staff member first.', 'warn'); return; }
                 const ocKey = (pfx === 'gc' || pfx === 'cs') ? empId : pfx + '::' + empId;
                 const tokens = raw.split(/[\s,;]+/).filter(Boolean);
                 const weeks  = new Set();
@@ -7444,7 +7580,7 @@
                     if (m) { for (let w = Math.max(1,+m[1]); w <= Math.min(52,+m[2]); w++) weeks.add(w); }
                     else { const n = +t; if (!isNaN(n) && n >= 1 && n <= 52) weeks.add(n); }
                 }
-                if (weeks.size === 0) { alert('⚠️ No valid week numbers found.'); return; }
+                if (weeks.size === 0) { this.showToast('No valid week numbers found.', 'warn'); return; }
                 if (!this.state.onCallDates[ocKey]) this.state.onCallDates[ocKey] = [];
                 const existing = new Set(this.state.onCallDates[ocKey]);
                 let added = 0;
@@ -7459,7 +7595,7 @@
                 });
                 this.state.onCallDates[ocKey] = [...existing].sort();
                 this.saveOnCallDatesToSupabase();
-                alert(`✅ Added ${added} new date${added!==1?'s':''} for "${empId}".`);
+                this.showToast(`Added ${added} new date${added!==1?'s':''} for "${empId}".`, 'success');
                 this.renderManageOnCallView();
             },
 
@@ -7472,7 +7608,7 @@
             addOnCallWeekKeyed(ocKey, cardEid) {
                 const weekNum = parseInt(document.getElementById('ocWeek-' + cardEid)?.value);
                 const yr      = parseInt(document.getElementById('ocWeekYear-' + cardEid)?.value) || this.state.biddingYear;
-                if (!weekNum || weekNum < 1 || weekNum > 52) { alert('⚠️ Enter a valid week (1–52).'); return; }
+                if (!weekNum || weekNum < 1 || weekNum > 52) { this.showToast('Enter a valid week (1–52).', 'warn'); return; }
                 const r = this.weekNumberToDateRange(weekNum, yr);
                 this._applyOnCallRange(ocKey, r.from, r.to);
             },
@@ -7487,7 +7623,7 @@
                     if (m) { for (let w = Math.max(1,+m[1]); w <= Math.min(52,+m[2]); w++) weeks.add(w); }
                     else { const n = +t; if (!isNaN(n) && n >= 1 && n <= 52) weeks.add(n); }
                 }
-                if (weeks.size === 0) { alert('⚠️ No valid week numbers found.'); return; }
+                if (weeks.size === 0) { this.showToast('No valid week numbers found.', 'warn'); return; }
                 if (!this.state.onCallDates[ocKey]) this.state.onCallDates[ocKey] = [];
                 const existing = new Set(this.state.onCallDates[ocKey]);
                 let added = 0;
@@ -7502,7 +7638,7 @@
                 });
                 this.state.onCallDates[ocKey] = [...existing].sort();
                 this.saveOnCallDatesToSupabase();
-                alert(`✅ Added ${added} new dates.`);
+                this.showToast(`Added ${added} new dates.`, 'success');
                 this.renderManageOnCallView();
             },
 
@@ -7529,7 +7665,7 @@
             removeFromOnCallList(ocKey, pfx) {
                 const empId = ocKey.includes('::') ? ocKey.split('::')[1] : ocKey;
                 const name = [...(this.state.goldenCommandUsers||[]), ...(this.state.corporateStaffUsers||[])].find(u => u.id === empId)?.name || empId;
-                const deptLabel = pfx==='gc' ? 'Golden Command' : pfx==='cs' ? 'Corporate Staff' : pfx==='l456inm' ? 'L456 INM' : pfx==='l3inm' ? 'L3 INM' : 'L3 TSM';
+                const deptLabel = pfx==='gc' ? 'Golden Command' : pfx==='cs' ? 'Corporate Staff' : pfx==='l456inm' ? 'L456 INM' : pfx==='l3inm' ? 'L3 INM' : pfx==='l3tsm' ? 'L3 TSM' : pfx==='hseq' ? 'HSEQ' : pfx;
                 if (!confirm(`Clear all On-Call dates for "${name}" in ${deptLabel}?\n\nThis only removes their schedule for this department.`)) return;
                 delete this.state.onCallDates[ocKey];
                 this.saveOnCallDatesToSupabase();
@@ -7633,7 +7769,7 @@
                 const empId   = document.getElementById('newOcId')?.value?.trim();
                 const dateFrom = document.getElementById('newOcFrom')?.value;
                 const dateTo   = document.getElementById('newOcTo')?.value;
-                if (!empId) { alert('Please enter an Operation Staff ID.'); return; }
+                if (!empId) { this.showToast('Please enter an Operation Staff ID.', 'warn'); return; }
                 this._applyOnCallRange(empId, dateFrom, dateTo, true);
             },
 
@@ -7662,17 +7798,17 @@
                 const yearInput = document.getElementById(`ocWeekYear-${empId}`)?.value;
                 const weekNum = parseInt(weekInput);
                 const year = parseInt(yearInput) || this.state.biddingYear;
-                if (!weekNum || weekNum < 1 || weekNum > 53) { alert('Please enter a valid week number (1–53).'); return; }
+                if (!weekNum || weekNum < 1 || weekNum > 53) { this.showToast('Please enter a valid week number (1–53).', 'warn'); return; }
                 const { from, to } = this.weekNumberToDateRange(weekNum, year);
                 this._applyOnCallRange(empId, from, to);
             },
 
             addOnCallWeekNew() {
                 const empId = document.getElementById('newOcId')?.value?.trim();
-                if (!empId) { alert('Please enter an Operation Staff ID.'); return; }
+                if (!empId) { this.showToast('Please enter an Operation Staff ID.', 'warn'); return; }
                 const weekNum = parseInt(document.getElementById('newOcWeekNum')?.value);
                 const year = parseInt(document.getElementById('newOcWeekYear')?.value) || this.state.biddingYear;
-                if (!weekNum || weekNum < 1 || weekNum > 53) { alert('Please enter a valid week number (1–53).'); return; }
+                if (!weekNum || weekNum < 1 || weekNum > 53) { this.showToast('Please enter a valid week number (1–53).', 'warn'); return; }
                 const { from, to } = this.weekNumberToDateRange(weekNum, year);
                 this._applyOnCallRange(empId, from, to, true);
             },
@@ -7691,12 +7827,12 @@
 
             addOnCallMultiWeekNew() {
                 const empId = document.getElementById('newOcId')?.value?.trim();
-                if (!empId) { alert('Please enter an Operation Staff ID.'); return; }
+                if (!empId) { this.showToast('Please enter an Operation Staff ID.', 'warn'); return; }
                 const raw  = document.getElementById('newOcMultiWeekInput')?.value || '';
                 const year = parseInt(document.getElementById('newOcMultiWeekYear')?.value) || this.state.biddingYear;
-                if (!raw.trim()) { alert('Please enter at least one week number.'); return; }
+                if (!raw.trim()) { this.showToast('Please enter at least one week number.', 'warn'); return; }
                 const weeks = this._parseMultiWeekInput(raw, year);
-                if (!weeks.length) { alert('No valid weeks found. Example: 1-4, 10, 22-26'); return; }
+                if (!weeks.length) { this.showToast('No valid weeks found. Example: 1-4, 10, 22-26', 'warn'); return; }
 
                 if (!this.state.onCallDates) this.state.onCallDates = {};
                 if (!this.state.onCallDates[empId]) this.state.onCallDates[empId] = [];
@@ -7714,16 +7850,16 @@
                 this.state.onCallDates[empId] = [...existing].sort();
                 this.saveOnCallDatesToSupabase();
                 this.writeAuditLog('MANUAL_OVERRIDE', { action: 'on_call_multi_add', empId, weeks: weeks.join(','), added });
-                alert(`✅ Added ${added} new date${added !== 1 ? 's' : ''} across ${weeks.length} week${weeks.length !== 1 ? 's' : ''} for "${empId}".\nTotal on-call dates: ${this.state.onCallDates[empId].length}`);
+                this.showToast(`Added ${added} new date${added !== 1 ? 's' : ''} across ${weeks.length} week${weeks.length !== 1 ? 's' : ''} for "${empId}". Total on-call dates: ${this.state.onCallDates[empId].length}`, 'success');
                 this.renderManageOnCallView();
             },
 
             addOnCallMultiWeek(empId) {
                 const raw  = document.getElementById(`ocMultiWeekInput-${empId}`)?.value || '';
                 const year = parseInt(document.getElementById(`ocMultiWeekYear-${empId}`)?.value) || this.state.biddingYear;
-                if (!raw.trim()) { alert('Please enter at least one week number.'); return; }
+                if (!raw.trim()) { this.showToast('Please enter at least one week number.', 'warn'); return; }
                 const weeks = this._parseMultiWeekInput(raw, year);
-                if (!weeks.length) { alert('No valid weeks found. Example: 1-4, 10, 22-26'); return; }
+                if (!weeks.length) { this.showToast('No valid weeks found. Example: 1-4, 10, 22-26', 'warn'); return; }
 
                 if (!this.state.onCallDates) this.state.onCallDates = {};
                 if (!this.state.onCallDates[empId]) this.state.onCallDates[empId] = [];
@@ -7741,7 +7877,7 @@
                 this.state.onCallDates[empId] = [...existing].sort();
                 this.saveOnCallDatesToSupabase();
                 this.writeAuditLog('MANUAL_OVERRIDE', { action: 'on_call_multi_add', empId, weeks: weeks.join(','), added });
-                alert(`✅ Added ${added} new date${added !== 1 ? 's' : ''} across ${weeks.length} week${weeks.length !== 1 ? 's' : ''} for "${empId}".\nTotal: ${this.state.onCallDates[empId].length} dates`);
+                this.showToast(`Added ${added} new date${added !== 1 ? 's' : ''} across ${weeks.length} week${weeks.length !== 1 ? 's' : ''} for "${empId}". Total: ${this.state.onCallDates[empId].length} dates`, 'success');
                 this.renderManageOnCallView();
             },
 
@@ -7853,8 +7989,8 @@
             },
 
             _applyOnCallRange(empId, from, to, isNew = false) {
-                if (!from || !to) { alert('Please select both a start and end date.'); return; }
-                if (from > to)    { alert('Start date must be on or before end date.'); return; }
+                if (!from || !to) { this.showToast('Please select both a start and end date.', 'warn'); return; }
+                if (from > to)    { this.showToast('Start date must be on or before end date.', 'warn'); return; }
 
                 if (!this.state.onCallDates) this.state.onCallDates = {};
                 if (!this.state.onCallDates[empId]) this.state.onCallDates[empId] = [];
@@ -7871,7 +8007,7 @@
                 this.state.onCallDates[empId] = [...existing].sort();
                 this.saveOnCallDatesToSupabase();
                 this.writeAuditLog('MANUAL_OVERRIDE', { action: 'on_call_add', empId, from, to, added });
-                alert(`✅ Added ${added} date${added !== 1 ? 's' : ''} to On-Call schedule for ${empId}.`);
+                this.showToast(`Added ${added} date${added !== 1 ? 's' : ''} to On-Call schedule for ${empId}.`, 'success');
                 this.renderManageOnCallView();
             },
 
@@ -7895,7 +8031,7 @@
                 // Update Supabase by re-saving the full state (delete + re-insert approach)
                 this.saveOnCallDatesToSupabase();
                 this.writeAuditLog('MANUAL_OVERRIDE', { action: 'on_call_delete', empId, blockFrom, blockTo, removed });
-                alert(`🗑 Removed ${removed} date${removed !== 1 ? 's' : ''} from On-Call schedule.`);
+                this.showToast(`Removed ${removed} date${removed !== 1 ? 's' : ''} from On-Call schedule.`, 'info');
                 this.renderManageOnCallView();
             },
 
@@ -7944,7 +8080,7 @@
                     msg.innerHTML = `<div class="mb-4 p-3 rounded-lg border ${color}">${text}</div>`;
                 };
 
-                if (current !== this.state.plannerPassword) {
+                if (!await this._verifyPassword(current, this.state.plannerPassword)) {
                     showMsg('❌ Current password is incorrect.', 'bg-red-50 border-red-300 text-red-700');
                     return;
                 }
@@ -7957,7 +8093,7 @@
                     return;
                 }
 
-                this.state.plannerPassword = newPass;
+                this.state.plannerPassword = await this._hashPassword(newPass);
 
                 try {
                     await this.saveConfigToSupabase();
@@ -8087,6 +8223,7 @@
                     { list: this.state.l456InmUsers,        role: 'l456inm'        },
                     { list: this.state.l3InmUsers,          role: 'l3inm'          },
                     { list: this.state.l3TsmUsers,          role: 'l3tsm'          },
+                    { list: this.state.hseqUsers,           role: 'hseq'           },
                 ];
                 for (const pool of pools) {
                     const u = (pool.list || []).find(u => u.id === id);
@@ -8109,6 +8246,7 @@
                     { list: this.state.l456InmUsers,        role: 'l456inm'        },
                     { list: this.state.l3InmUsers,          role: 'l3inm'          },
                     { list: this.state.l3TsmUsers,          role: 'l3tsm'          },
+                    { list: this.state.hseqUsers,           role: 'hseq'           },
                 ];
                 for (const pool of pools) {
                     const u = (pool.list || []).find(u => u.email && u.email.toLowerCase() === e);
@@ -8236,7 +8374,7 @@
                 const masked = target.email.replace(/(.{2})(.+?)(@.+)$/, (_, a, b, c) => a + '*'.repeat(Math.min(b.length, 5)) + c);
                 document.getElementById('fpOtpSentMsg').innerHTML = `✅ OTP sent to <strong>${masked}</strong>.<br>Check your inbox and spam. Expires in 10 minutes.`;
                 document.getElementById('fpNewPwdLabel').textContent =
-                    (role === 'employee' || role === 'l456inm' || role === 'l3inm' || role === 'l3tsm')
+                    (role === 'employee' || role === 'l456inm' || role === 'l3inm' || role === 'l3tsm' || role === 'hseq')
                     ? 'New Password (leave blank to reset to Operation Staff ID)' : 'New Password';
             },
 
@@ -8297,20 +8435,21 @@
                     if (otp !== this._fpOtp)            { showMsg('❌ Incorrect OTP. Please check and try again.', 'error'); return; }
                 }
 
+                const hashed = await this._hashPassword(newPwd || (role === 'employee' ? id : newPwd));
                 if (role === 'employee') {
-                    const finalPwd = newPwd || id;
+                    const finalPwd = newPwd ? hashed : await this._hashPassword(id);
                     this.state.employeePasswords[id] = finalPwd;
                     try { if (this.supabase) await this.supabase.from('employees').update({ password: finalPwd }).eq('id', id); }
                     catch (e) { console.warn('DB update failed:', e); }
                 } else if (role === 'planner') {
-                    this.state.plannerPassword = newPwd;
+                    this.state.plannerPassword = hashed;
                     try { await this.saveConfigToSupabase(); } catch (e) { console.warn(e); }
                 } else if (role === 'goldencommand') {
                     const u = (this.state.goldenCommandUsers || []).find(u => u.id === id);
-                    if (u) u.password = newPwd;
+                    if (u) u.password = hashed;
                 } else if (role === 'corporatestaff') {
                     const u = (this.state.corporateStaffUsers || []).find(u => u.id === id);
-                    if (u) u.password = newPwd;
+                    if (u) u.password = hashed;
                 }
 
                 this.saveState();
@@ -8623,11 +8762,10 @@
                     var gccsIds = gcIds.concat(csIds);
 
                     // Only include the specific staff from the approved Excel list
-                    var ALLOWED_IDS = ['1000888','1000008','1000027','1000124','1001118','1002997','1003591','1003592','1003752','1006024','1006939','1007066','10015','10020','1000555','1000136','1000225','1000352','1000759','1000043','1000830','1000284','1000330','1000231','1000238'];
+                    var ALLOWED_IDS = ['1000008','1000027','1000124','1001118','1002997','1003591','1003592','1003752','1006024','1006939','1007066','10015','10020','1000555','1000136','1000225','1000352','1000759','1000043','1000830','1000284','1000330','1000231','1000238'];
 
                     // Canonical job titles from approved staff list
                     var STAFF_TITLES = {
-                        '1000888': 'Project Director',
                         '1000008': 'Senior Executive Finance Director',
                         '1000027': 'Senior Executive Human Resource Director',
                         '1000124': 'Senior Executive Director Stakeholder & Communication',
@@ -8749,9 +8887,8 @@
                     if (!staff.length) return '<div class="lc-empty">No staff match the current filter.</div>';
 
                     var groups = [
-                        { key: 'cs', label: 'Corporate Staff', cls: 'dt-ops' },
-                        { key: 'gc', label: 'Golden Command', cls: 'dt-exec' }
-                        
+                        { key: 'gc', label: 'Golden Command', cls: 'dt-exec' },
+                        { key: 'cs', label: 'Corporate Staff', cls: 'dt-ops' }
                     ];
                     var html = '';
                     groups.forEach(function(g) {
