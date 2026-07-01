@@ -3508,7 +3508,15 @@
 
                 const csBids = this.state.bids.filter(bid => bid.employeeId === csUser.id);
                 const totalBidDays = csBids.reduce((sum, bid) => sum + bid.days, 0);
-                const entitlement = 30; // Corporate Staff entitlement
+                // Corporate Staff entitlement: 35 days if 5+ years of service, else 30
+                const calculateCsYearsOfService = (seniorityDate) => {
+                    if (!seniorityDate) return 0;
+                    const today = new Date();
+                    const joinDate = new Date(seniorityDate);
+                    return (today - joinDate) / (1000 * 60 * 60 * 24 * 365.25);
+                };
+                const csYearsOfService = calculateCsYearsOfService(csUser.seniorityDate);
+                const entitlement = csYearsOfService >= 5 ? 35 : 30;
 
                 // Countdown
                 const deadlineCountdownCS = (() => {
@@ -3585,7 +3593,7 @@
                                 <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
                                     <p class="text-2xl font-bold text-blue-800">${entitlement}</p>
                                     <p class="text-sm text-gray-600">Total Leave Days</p>
-                                    <p class="text-xs text-blue-600">Corporate Staff Entitlement</p>
+                                    <p class="text-xs text-blue-600">${csYearsOfService >= 5 ? 'Corporate Staff (5+ yrs service)' : 'Corporate Staff Entitlement'}</p>
                                 </div>
                                 <div class="bg-green-50 p-4 rounded-lg">
                                     <p class="text-2xl font-bold">${csBids.length} <span class="text-sm font-normal text-gray-500">unlimited</span></p>
@@ -10642,47 +10650,22 @@
                 // Build leave set from live bids
                 function lcBuildStaffFromBids() {
                     var bids = self.state.bids || [];
-                    var gcIds = (self.state.goldenCommandUsers  || []).map(function(u){ return u.id; });
-                    var csIds = (self.state.corporateStaffUsers || []).map(function(u){ return u.id; });
+                    var gcUsers = self.state.goldenCommandUsers  || [];
+                    var csUsers = self.state.corporateStaffUsers || [];
+                    var gcIds = gcUsers.map(function(u){ return u.id; });
+                    var csIds = csUsers.map(function(u){ return u.id; });
                     var gccsIds = gcIds.concat(csIds);
 
-                    // Only include the specific staff from the approved Excel list
-                    var ALLOWED_IDS = ['1000888','1000008','1000027','1000124','1001118','1002997','1003591','1003592','1003752','1006024','1006939','1007066','10015','10020','1000555','1000136','1000225','1000352','1000759','1000043','1000830','1000284','1000330','1000231','1000238','1005385','1007071','1006467','1007071'];
+                    // Live title lookup — pulled straight from Supabase-backed rosters
+                    // (golden_command_users / corporate_staff_employees) instead of a
+                    // hardcoded list, so new hires/removals show up automatically.
+                    var STAFF_TITLES = {};
+                    gcUsers.forEach(function(u) { STAFF_TITLES[u.id] = u.position || u.title || ''; });
+                    csUsers.forEach(function(u) { STAFF_TITLES[u.id] = u.position || u.title || ''; });
 
-                    // Canonical job titles from approved staff list
-                    var STAFF_TITLES = {
-                        '1000888': 'Project Director',
-                        '1000008': 'Senior Executive Finance Director',
-                        '1000027': 'Senior Executive Human Resource Director',
-                        '1000124': 'Senior Executive Director Stakeholder & Communication',
-                        '1001118': 'Head of Major Services Management',
-                        '1002997': 'Contract Director',
-                        '1003591': 'ICT Manager',
-                        '1003592': 'Head of Cyber Security',
-                        '1003752': 'INM Director',
-                        '1006024': 'Security Director',
-                        '1006939': 'Rail Safety Manager',
-                        '1007066': 'Operations Director',
-                        '10015':   'TSM L456 Director',
-                        '10020':   'TSM L3 Director',
-                        '1000555': 'Executive Assistant Project Director',
-                        '1000136': 'CMMS Manager',
-                        '1000225': 'Performance Manager',
-                        '1000352': 'Planning and Reporting Specialist',
-                        '1000759': 'KPI & Reporting Specialist',
-                        '1000043': 'Quality And Audit Manager',
-                        '1000830': 'Risk Manager',
-                        '1000284': 'Rail Safety Officer',
-                        '1000330': 'Executive Assistant',
-                        '1000231': 'Line Standards Manager',
-                        '1000238': 'Line Standards Manager',
-                        '1005385': 'Operation Manager L-46',
-                        '1007071': 'Operation Manager L-5',
-                        '1006467': 'Operation Manager L-3'
-                    };
-
-                    // Filter to GC/CS AND in allowed list
-                    var gccs = bids.filter(function(b) { return gccsIds.indexOf(b.employeeId) > -1 && ALLOWED_IDS.indexOf(b.employeeId) > -1; });
+                    // Include ALL Golden Command + Corporate Staff who have bids —
+                    // roster membership itself (loaded from Supabase) is the whitelist.
+                    var gccs = bids.filter(function(b) { return gccsIds.indexOf(b.employeeId) > -1; });
 
                     // Build per-staff map
                     var staffMap = {};
@@ -10948,15 +10931,15 @@
                         self._setLcStatus('live');
                     }
                 }, 30000);
-                // Build the whitelist once: only IDs that appear in BOTH the
-                // ALLOWED_IDS hardcoded list AND the live GC/CS user roster.
+                // Build the whitelist from the live GC/CS roster (Supabase-backed) —
+                // any ID present in golden_command_users or corporate_staff_employees
+                // is allowed; no hardcoded ID list to maintain.
                 function lcSfWhitelist() {
                     var gcIds = (self.state.goldenCommandUsers  || []).map(function(u){ return u.id; });
                     var csIds = (self.state.corporateStaffUsers || []).map(function(u){ return u.id; });
                     var gccsIds = gcIds.concat(csIds);
-                    var ALLOWED_IDS = ['1000888','1000008','1000027','1000124','1001118','1002997','1003591','1003592','1003752','1006024','1006939','1007066','10015','10020','1000555','1000136','1000225','1000352','1000759','1000043','1000830','1000284','1000330','1000231','1000238','1005385','1007071','1006467','1007071'];
                     var set = new Set();
-                    gccsIds.forEach(function(id) { if (ALLOWED_IDS.indexOf(id) > -1) set.add(id); });
+                    gccsIds.forEach(function(id) { set.add(id); });
                     return set;
                 }
 
@@ -11134,18 +11117,10 @@
 
                     var tid = self._tid ? self._tid() : (self.state && self.state.tenantId) || 'default';
                     var gcIds = (self.state.goldenCommandUsers  || []).map(function(u){ return u.id; });
-                    var STAFF_TITLES = {
-                        '1000888':'Project Director','1000008':'Senior Executive Finance Director',
-                        '1000027':'Senior Executive Human Resource Director','1000124':'Senior Executive Director Stakeholder & Communication',
-                        '1001118':'Head of Major Services Management','1002997':'Contract Director',
-                        '1003591':'ICT Manager','1003592':'Head of Cyber Security','1003752':'INM Director',
-                        '1006024':'Security Director','1006939':'Rail Safety Manager','1007066':'Operations Director',
-                        '10015':'TSM L456 Director','10020':'TSM L3 Director','1000555':'Executive Assistant Project Director',
-                        '1000136':'CMMS Manager','1000225':'Performance Manager','1000352':'Planning and Reporting Specialist',
-                        '1000759':'KPI & Reporting Specialist','1000043':'Quality And Audit Manager','1000830':'Risk Manager',
-                        '1000284':'Rail Safety Officer','1000330':'Executive Assistant','1000231':'Line Standards Manager',
-                        '1000238':'Line Standards Manager','1005385':'Operation Manager L-46','1007071':'Operation Manager L-5','1006467':'Operation Manager L-3'
-                    };
+                    // Live title lookup from the Supabase-backed rosters (same as lcBuildStaffFromBids)
+                    var STAFF_TITLES = {};
+                    (self.state.goldenCommandUsers  || []).forEach(function(u) { STAFF_TITLES[u.id] = u.position || u.title || ''; });
+                    (self.state.corporateStaffUsers || []).forEach(function(u) { STAFF_TITLES[u.id] = u.position || u.title || ''; });
 
                     var inserted = 0, updated = 0, errors = 0, errDetails = [];
 
