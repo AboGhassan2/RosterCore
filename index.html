@@ -1051,64 +1051,45 @@
         </div>
 
         <!-- Planner Navigation -->
-        <div id="plannerNav" class="hidden" style="background:#fff;border-bottom:1px solid #e5e7eb;padding:10px 20px;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:50;">
-            <style>
-              .pn-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;color:#374151;font-size:0.82rem;font-weight:600;cursor:pointer;transition:all 0.15s;white-space:nowrap;font-family:inherit;}
-              .pn-btn:hover{background:#f3f4f6;border-color:#d1d5db;}
-              .pn-btn.pn-active{color:#4f46e5;border-color:#c7d2fe;background:#eef2ff;}
-              .pn-btn.pn-primary{background:#4f46e5;color:#fff;border-color:#4f46e5;}
-              .pn-btn.pn-primary:hover{background:#4338ca;}
-              .pn-btn.pn-purple{color:#a855f7;border-color:#e9d5ff;background:#faf5ff;}
-              .pn-btn.pn-red{color:#ef4444;border-color:#fecaca;background:#fff5f5;}
-            </style>
-            <button onclick="app.setActiveView('dashboard')" class="pn-btn pn-active" id="pnBtnDashboard">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-                Dashboard
+        <div id="plannerNav" class="hidden flex justify-center space-x-4 mb-6 flex-wrap gap-2">
+            <button onclick="app.setActiveView('dashboard')" class="px-4 py-2 rounded-lg font-semibold bg-white text-gray-700 hover:bg-gray-100 border">
+                📊 Dashboard
             </button>
-            <button onclick="app.setActiveView('upload')" class="pn-btn" id="pnBtnUpload">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
-                Upload Data
+            <button onclick="app.setActiveView('upload')" class="px-4 py-2 rounded-lg font-semibold bg-white text-gray-700 hover:bg-gray-100 border">
+                📤 Upload Data
             </button>
-            <button onclick="app.setActiveView('configureSlots')" class="pn-btn" id="pnBtnConfigSlots">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
-                Configure Slots
+            <button onclick="app.setActiveView('configureSlots')" class="px-4 py-2 rounded-lg font-semibold bg-white text-gray-700 hover:bg-gray-100 border">
+                ⚙️ Configure Slots
             </button>
-            <button onclick="app.setActiveView('configureMaintSlots')" class="pn-btn pn-purple" id="pnBtnMaintSlots">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-                Configure Maint Slots
+            <button onclick="app.setActiveView('seniorityReport')" class="px-4 py-2 rounded-lg font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-300">
+                📋 Seniority Report
             </button>
-            <button onclick="app.setActiveView('admin')" class="pn-btn" id="pnBtnAdmin">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                Admin Panel
+            <button onclick="app.setActiveView('configureMaintSlots')" class="px-4 py-2 rounded-lg font-semibold bg-red-50 text-red-700 hover:bg-red-100 border border-red-300">
+                🔧 Configure Maint Slots
             </button>
-            <button onclick="app.publishToSupabase ? app.publishToSupabase() : app.saveState()" class="pn-btn pn-primary">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="2" width="20" height="8" rx="2"/><path d="M2 14h20M2 20h20"/><circle cx="6" cy="6" r="1" fill="currentColor"/></svg>
-                Save to Database
+            <button onclick="app.setActiveView('admin')" class="px-4 py-2 rounded-lg font-semibold bg-white text-gray-700 hover:bg-gray-100 border">
+                🛠️ Admin Panel
             </button>
-            <div style="flex:1;min-width:4px;"></div>
-            <button onclick="app.setActiveView('manageUsers')" class="pn-btn" id="pnBtnUsers">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                Manage Users
+            <button onclick="app.publishToSupabase()" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold">
+                💾 Save to Database
             </button>
-            <button onclick="app.setActiveView('manageOnCall')" class="pn-btn pn-red" id="pnBtnOnCall">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 11.1 19.79 19.79 0 0 1 1.67 2.5 2 2 0 0 1 3.64.5h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.1a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                On-Call Manager
+            <button onclick="app.setActiveView('manageUsers')" class="px-4 py-2 rounded-lg font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-300">
+                👥 Manage Users
             </button>
-            <button onclick="app.setActiveView('changePlannerPassword')" class="pn-btn" id="pnBtnPwd">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                Change Password
+            <button onclick="app.setActiveView('manageOnCall')" class="px-4 py-2 rounded-lg font-semibold bg-red-50 text-red-700 hover:bg-red-100 border border-red-300">
+                📅 On-Call Manager
             </button>
-            <button onclick="app.setActiveView('results')" class="pn-btn" id="pnBtnResults">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                View Results
+            <button onclick="app.setActiveView('changePlannerPassword')" class="px-4 py-2 rounded-lg font-semibold bg-white text-gray-700 hover:bg-gray-100 border">
+                🔐 Change Password
             </button>
-            <button onclick="app.setActiveView('auditLog')" class="pn-btn" id="pnBtnAudit">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                Audit Log
+            <button onclick="app.setActiveView('results')" class="px-4 py-2 rounded-lg font-semibold bg-white text-gray-700 hover:bg-gray-100 border">
+                📋 View Results
             </button>
-            <button onclick="app.setActiveView('leaveDashboard')" class="pn-btn" id="pnBtnLeave">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                GC &amp; CS Leave Tracker
+            <button onclick="app.setActiveView('auditLog')" class="px-4 py-2 rounded-lg font-semibold bg-white text-gray-700 hover:bg-gray-100 border">
+                🔍 Audit Log
+            </button>
+            <button onclick="app.setActiveView('leaveDashboard')" class="px-4 py-2 rounded-lg font-semibold bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-300">
+                &#128197; GC &amp; CS Leave Tracker
             </button>
         </div>
 
@@ -1233,7 +1214,8 @@
                 slotTypes: [
                     { id: 'slotA', name: 'Slot A', days: 15, color: 'green' },
                     { id: 'slotB', name: 'Slot B', days: 15, color: 'blue' },
-                    { id: 'slotC', name: 'Slot C', days: 20, color: 'purple' }
+                    { id: 'slotC', name: 'Slot C', days: 20, color: 'purple' },
+                    { id: 'slotD', name: 'Slot D', days: 20, color: 'orange' }
                 ],
                 
                 months: [
@@ -1400,14 +1382,22 @@
                     const supabaseKeys = new Set(supabaseBids.map(b => `${b.employeeId}|${b.slotType}|${b.startDate}`));
                     const localOnly = localBids.filter(b => !supabaseKeys.has(`${b.employeeId}|${b.slotType}|${b.startDate}`));
 
-                    // Push any local-only bids up to Supabase now
-                    if (localOnly.length > 0) {
-                        console.log(`ℹ️ Found ${localOnly.length} local bid(s) not yet in Supabase — pushing now...`);
-                        localOnly.forEach(bid => this.saveBidToSupabase(bid));
+                    // Only re-push bids created within the last 60 seconds — older
+                    // entries in localStorage are either already synced or were
+                    // intentionally deleted, so we must NOT resurrect them.
+                    const freshLocalOnly = localOnly.filter(b => {
+                        const ts = new Date(b.timestamp || 0).getTime();
+                        return Date.now() - ts < 60_000;
+                    });
+
+                    if (freshLocalOnly.length > 0) {
+                        console.log(`ℹ️ Found ${freshLocalOnly.length} recent local bid(s) not yet in Supabase — pushing now...`);
+                        freshLocalOnly.forEach(bid => this.saveBidToSupabase(bid));
                     }
 
-                    this.state.bids = [...supabaseBids, ...localOnly];
-                    console.log(`✅ Loaded ${supabaseBids.length} bids from Supabase + ${localOnly.length} local-only bid(s)`);
+                    this.state.bids = [...supabaseBids, ...freshLocalOnly];
+                    console.log(`✅ Loaded ${supabaseBids.length} bids from Supabase + ${freshLocalOnly.length} recent local-only bid(s)`);
+                    this.saveState();
                     
                     if (config) {
                         this.state.biddingDeadline = config.bidding_deadline || '';
@@ -1482,25 +1472,45 @@
                         console.log('ℹ️ No GC users found in dedicated table');
                     }
 
-                    // Load Corporate Staff users from dedicated table
-                    const { data: csUsers, error: csError } = await this.supabase
-                        .from('corporate_staff_users')
-                        .select('id, name, password, email')
-                        .eq('tenant_id', this._tid())
-                        .order('created_at', { ascending: true });
-
-                    if (csError) {
-                        console.warn('⚠️ Could not load Corporate Staff users:', csError.message);
-                    } else if (csUsers && csUsers.length > 0) {
-                        this.state.corporateStaffUsers = csUsers.map(u => ({
-                            id: u.id,
-                            name: u.name,
-                            password: u.password || u.id,
-                            email: u.email || ''
+                    // Load Corporate Staff roster from dedicated table (paginated, like Maintenance staff)
+                    let allCsStaff = [];
+                    let csFrom = 0;
+                    let csHasMore = true;
+                    while (csHasMore) {
+                        const { data: csBatch, error: csError } = await this.supabase
+                            .from('corporate_staff_employees')
+                            .select('*')
+                            .eq('tenant_id', this._tid())
+                            .range(csFrom, csFrom + batchSize - 1);
+                        if (csError) {
+                            console.warn('⚠️ Could not load corporate_staff_employees:', csError.message);
+                            csHasMore = false;
+                        } else if (csBatch && csBatch.length > 0) {
+                            allCsStaff = [...allCsStaff, ...csBatch];
+                            csHasMore = csBatch.length === batchSize;
+                            csFrom += batchSize;
+                        } else {
+                            csHasMore = false;
+                        }
+                    }
+                    if (allCsStaff.length > 0) {
+                        this.state.corporateStaffUsers = allCsStaff.map(u => ({
+                            id:            String(u.id),
+                            name:          u.name         || '',
+                            department:    u.department   || 'Corporate Staff',
+                            position:      u.position     || '',
+                            role:          u.role         || '',
+                            nationality:   u.nationality  || '',
+                            gender:        u.gender       || '',
+                            seniorityDate: u.seniority_date || '2000-01-01',
+                            totalLeaveDays: u.total_leave_days ?? 30,
+                            usedLeaveDays:  u.used_leave_days  ?? 0,
+                            password:      u.password || String(u.id),
+                            email:         u.email || ''
                         }));
-                        console.log(`✅ Loaded ${csUsers.length} Corporate Staff users from dedicated table`);
+                        console.log(`✅ Corporate Staff roster loaded from Supabase: ${this.state.corporateStaffUsers.length} records`);
                     } else {
-                        console.log('ℹ️ No Corporate Staff users found in dedicated table');
+                        console.log('ℹ️ No Corporate Staff records found in corporate_staff_employees table');
                     }
 
                     // ── Load CS sub-group users (L456 INM, L3 INM, L3 TSM) from Supabase ──
@@ -1909,9 +1919,7 @@
                         document.getElementById('loginView').style.display = 'none';
                         const uip = document.getElementById('userInfo');
                         uip.style.display = 'flex'; uip.classList.remove('hidden');
-                        const pn = document.getElementById('plannerNav');
-                        pn.classList.remove('hidden');
-                        pn.style.display = 'flex';
+                        document.getElementById('plannerNav').classList.remove('hidden');
                         document.getElementById('currentUserName').textContent = 'Planner Admin';
                         document.getElementById('userTypeBadge').textContent = 'Planner';
                         document.getElementById('userTypeBadge').className = 'ml-2 px-2 py-1 text-xs rounded bg-purple-100 text-purple-800';
@@ -1997,7 +2005,13 @@
 
                     this.state.currentUser = csUser;
                     this.state.userType = 'corporatestaff';
-                    this.state.verifiedEmployee = { id: csUser.id, name: csUser.name, department: 'Corporate Staff', seniorityDate: '2000-01-01' };
+                    this.state.verifiedEmployee = {
+                        id: csUser.id,
+                        name: csUser.name,
+                        department: csUser.department || 'Corporate Staff',
+                        position: csUser.position || '',
+                        seniorityDate: csUser.seniorityDate || '2000-01-01'
+                    };
                     this.state.activeView = 'corporateStaff';
 
                     // Hide login, show app
@@ -2115,8 +2129,7 @@
                 this.state.activeView = 'login';
                 
                 document.getElementById('userInfo').style.display = 'none';
-                const _pnHide1 = document.getElementById('plannerNav');
-                _pnHide1.classList.add('hidden'); _pnHide1.style.display = '';
+                document.getElementById('plannerNav').classList.add('hidden');
                 document.getElementById('employeeNav').classList.add('hidden');
                 document.getElementById('goldenCommandNav').classList.add('hidden');
                 document.getElementById('corporateStaffNav').classList.add('hidden');
@@ -2144,17 +2157,24 @@
                 clearInterval(window._gcCountdownInterval); window._gcCountdownInterval = null;
                 clearInterval(window._csCountdownTimer);    window._csCountdownTimer = null;
                 clearInterval(window._dashInterval);        window._dashInterval = null;
-                this.stopAdminPolling();
+                this._stopAdminLive();
 
                 // Re-sync only user lists from Supabase so dropdowns are fresh on next login
                 if (this.supabase) {
                     try {
-                        // Reload CS users
+                        // Reload CS roster
                         const { data: csRows } = await this.supabase
-                            .from('corporate_staff_users').select('id,name,password,email')
+                            .from('corporate_staff_employees').select('*')
                             .eq('tenant_id', this._tid());
                         if (csRows && csRows.length > 0)
-                            this.state.corporateStaffUsers = csRows.map(u => ({ id: u.id, name: u.name, password: u.password || u.id, email: u.email || '' }));
+                            this.state.corporateStaffUsers = csRows.map(u => ({
+                                id: String(u.id), name: u.name || '',
+                                department: u.department || 'Corporate Staff', position: u.position || '',
+                                role: u.role || '', nationality: u.nationality || '', gender: u.gender || '',
+                                seniorityDate: u.seniority_date || '2000-01-01',
+                                totalLeaveDays: u.total_leave_days ?? 30, usedLeaveDays: u.used_leave_days ?? 0,
+                                password: u.password || String(u.id), email: u.email || ''
+                            }));
 
                         // Reload sub-group users
                         for (const sg of [
@@ -2176,30 +2196,13 @@
             setActiveView(view) {
                 console.log('Setting view to:', view);
                 // Stop any existing admin polling when navigating away
-                if (view !== 'admin') this.stopAdminPolling();
+                if (view !== 'admin') this._stopAdminLive();
+                // Stop Leave Dashboard realtime when navigating away
+                if (view !== 'leaveDashboard') this.stopLcRealtime();
                 this.state.activeView = view;
-
-                // Update active highlight on plannerNav buttons
-                const navMap = {
-                    dashboard: 'pnBtnDashboard', upload: 'pnBtnUpload',
-                    configureSlots: 'pnBtnConfigSlots', configureMaintSlots: 'pnBtnMaintSlots',
-                    admin: 'pnBtnAdmin', manageUsers: 'pnBtnUsers',
-                    manageOnCall: 'pnBtnOnCall', changePlannerPassword: 'pnBtnPwd',
-                    results: 'pnBtnResults', auditLog: 'pnBtnAudit', leaveDashboard: 'pnBtnLeave'
-                };
-                Object.values(navMap).forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) { el.classList.remove('pn-active'); }
-                });
-                const activeId = navMap[view];
-                if (activeId) {
-                    const el = document.getElementById(activeId);
-                    if (el) el.classList.add('pn-active');
-                }
-
                 // Auto-refresh bids from Supabase when planner opens Admin Panel
                 if (view === 'admin' && this.state.userType === 'planner' && this.supabase) {
-                    this.refreshBidsFromSupabase(false).then(() => this.startAdminPolling());
+                    this.refreshBidsFromSupabase(false).then(() => this._startAdminLive());
                 } else {
                     this.renderView();
                 }
@@ -2228,6 +2231,9 @@
                         break;
                     case 'configureSlots':
                         this.renderConfigureSlotsView();
+                        break;
+                    case 'seniorityReport':
+                        this.renderSeniorityReportView();
                         break;
                     case 'configureMaintSlots':
                         this.renderConfigureMaintSlotsView();
@@ -2393,6 +2399,8 @@
                                         <div class="flex items-center gap-3 flex-wrap">
                                             <span class="font-semibold text-blue-900">🏢 ${u.name}</span>
                                             <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono border border-blue-300">ID: ${u.id}</span>
+                                            ${u.department && u.department !== 'Corporate Staff' ? `<span class="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-200">${u.department}</span>` : ''}
+                                            ${u.position ? `<span class="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-200">${u.position}</span>` : ''}
                                             <span class="text-xs text-gray-400">Password: ${u.password || u.id}</span>
                                         </div>
                                         <button onclick="app.removeCSUser(${i})" class="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-semibold">✕ Remove</button>
@@ -2737,10 +2745,6 @@
             
                 const getEmployeeEntitlement = (employee) => {
                     if (!employee || !employee.seniorityDate) return 30;
-                    // Corporate Staff and Golden Command are capped at 30 days regardless of seniority
-                    const csIds = (this.state.corporateStaffUsers || []).map(u => u.id);
-                    const gcIds = (this.state.goldenCommandUsers  || []).map(u => u.id);
-                    if (csIds.includes(employee.id) || gcIds.includes(employee.id)) return 30;
                     const yearsOfService = calculateYearsOfService(employee.seniorityDate);
                     return yearsOfService >= 5 ? 35 : 30;
                 };
@@ -2852,7 +2856,7 @@
                                     id="submitBidBtn"
                                     onclick="app.submitBid()"
                                     class="w-full px-6 py-3 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 disabled:opacity-50"
-                                    ${this.state.isProcessed ? 'disabled' : ''}
+                                    ${(this.state.isProcessed || this.isBiddingClosed()) ? 'disabled' : ''}
                                 >
                                     Submit Bid
                                 </button>
@@ -2876,9 +2880,11 @@
                                             const slotLabel = bid.slotType === 'SA' || bid.slotType === 'slotA' ? 'Slot A' :
                                                               bid.slotType === 'SB' || bid.slotType === 'slotB' ? 'Slot B' :
                                                               bid.slotType === 'SC' || bid.slotType === 'slotC' ? 'Slot C' :
+                                                              bid.slotType === 'SD' || bid.slotType === 'slotD' ? 'Slot D' :
                                                               (this.state.slotTypes.find(s => s.id === bid.slotType)?.name || bid.slotType);
                                             const badgeColor = (bid.slotType === 'SA' || bid.slotType === 'slotA') ? 'bg-green-100 text-green-800 border-green-300' :
                                                                (bid.slotType === 'SB' || bid.slotType === 'slotB') ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                                                               (bid.slotType === 'SD' || bid.slotType === 'slotD') ? 'bg-orange-100 text-orange-800 border-orange-300' :
                                                                'bg-purple-100 text-purple-800 border-purple-300';
                                             return `
                                                 <div class="border border-gray-200 rounded-xl p-4">
@@ -3134,7 +3140,7 @@
                                 <button
                                     onclick="app.submitGCBid()"
                                     class="w-full px-6 py-3 bg-yellow-400 text-yellow-900 rounded-lg font-semibold hover:bg-yellow-500 transition-colors shadow-sm"
-                                    ${this.state.isProcessed ? 'disabled' : ''}
+                                    ${(this.state.isProcessed || this.isBiddingClosed()) ? 'disabled' : ''}
                                 >
                                     ⭐ Submit Golden Command Bid
                                 </button>
@@ -3357,6 +3363,11 @@
                     return;
                 }
 
+                if (this.isBiddingClosed()) {
+                    alert('⛔ The bidding deadline has passed. You can no longer submit bids.');
+                    return;
+                }
+
                 const gcUser = this.state.verifiedEmployee;
                 if (!gcUser) { alert('Please login first.'); return; }
 
@@ -3451,37 +3462,42 @@
                 this.renderGoldenCommandBiddingView();
             },
 
-            removeGCBid(slotType, startDate) {
+            async removeGCBid(slotType, startDate) {
                 if (this.state.isProcessed) {
                     alert('Cannot remove bids after processing.');
                     return;
                 }
+                if (!confirm('Remove this Golden Command bid?')) return;
                 const gcUser = this.state.verifiedEmployee;
-                if (confirm('Remove this Golden Command bid?')) {
-                    // Remove the first matching bid (slotType + startDate)
-                    const idx = this.state.bids.findIndex(bid =>
-                        bid.employeeId === gcUser.id && bid.slotType === slotType && bid.startDate === startDate
-                    );
-                    if (idx !== -1) this.state.bids.splice(idx, 1);
-                    this.saveState();
 
-                    // Delete from Supabase immediately
-                    if (this.supabase) {
-                        this.supabase
-                            .from('leave_requests')
-                            .delete()
-                            .eq('tenant_id', this._tid())
-                            .eq('employee_id', gcUser.id)
-                            .eq('slot_type', slotType)
-                            .eq('start_date', startDate)
-                            .then(({ error }) => {
-                                if (error) console.warn('⚠️ Could not delete GC bid from Supabase:', error.message);
-                                else console.log('✅ GC Bid deleted from Supabase');
-                            });
-                    }
+                // 1. Optimistically remove from local state and persist immediately
+                const idx = this.state.bids.findIndex(bid =>
+                    bid.employeeId === gcUser.id && bid.slotType === slotType && bid.startDate === startDate
+                );
+                if (idx !== -1) this.state.bids.splice(idx, 1);
+                this.saveState();
+                this.renderGoldenCommandBiddingView();
 
-                    this.renderGoldenCommandBiddingView();
+                // 2. Delete from Supabase and AWAIT the result so a failure is surfaced
+                if (!this.supabase) {
+                    this.writeAuditLog('BID_REMOVED', { employee_id: gcUser.id, slot_type: slotType, start_date: startDate, section: 'golden_command' });
+                    return;
                 }
+                const { error } = await this.supabase
+                    .from('leave_requests')
+                    .delete()
+                    .eq('tenant_id', this._tid())
+                    .eq('employee_id', gcUser.id)
+                    .eq('slot_type', slotType)
+                    .eq('start_date', startDate);
+
+                if (error) {
+                    console.error('❌ GC Bid delete failed:', error.message);
+                    alert('Could not delete from server — please retry.');
+                    return;
+                }
+                console.log('✅ GC Bid deleted from Supabase');
+                this.writeAuditLog('BID_REMOVED', { employee_id: gcUser.id, slot_type: slotType, start_date: startDate, section: 'golden_command' });
             },
 
             // ==================== CORPORATE STAFF BIDDING ====================
@@ -3664,8 +3680,8 @@
                                 </div>
 
                                 <button onclick="app.submitCSBid()"
-                                    class="w-full px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition ${this.state.isProcessed ? 'opacity-50 cursor-not-allowed' : ''}"
-                                    ${this.state.isProcessed ? 'disabled' : ''}>
+                                    class="w-full px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition ${(this.state.isProcessed || this.isBiddingClosed()) ? 'opacity-50 cursor-not-allowed' : ''}"
+                                    ${(this.state.isProcessed || this.isBiddingClosed()) ? 'disabled' : ''}>
                                     🏢 Submit Corporate Staff Bid
                                 </button>
                             </div>
@@ -3802,6 +3818,7 @@
 
             submitCSBid() {
                 if (this.state.isProcessed) { alert('Bidding has been processed. No more bids.'); return; }
+                if (this.isBiddingClosed()) { alert('⛔ The bidding deadline has passed. You can no longer submit bids.'); return; }
                 const csUser = this.state.verifiedEmployee;
                 if (!csUser) return;
                 if (!window.csSelectedSlot) { alert('⚠️ Please select a slot type first.'); return; }
@@ -3887,28 +3904,39 @@
                 this.renderCorporateStaffBiddingView();
             },
 
-            removeCSBid(slotType, startDate) {
+            async removeCSBid(slotType, startDate) {
                 if (this.state.isProcessed) { alert('Cannot remove bids after processing.'); return; }
+                if (!confirm('Remove this Corporate Staff bid?')) return;
                 const csUser = this.state.verifiedEmployee;
-                if (confirm('Remove this Corporate Staff bid?')) {
-                    const idx = this.state.bids.findIndex(bid =>
-                        bid.employeeId === csUser.id && bid.slotType === slotType && bid.startDate === startDate
-                    );
-                    if (idx !== -1) this.state.bids.splice(idx, 1);
-                    this.saveState();
-                    if (this.supabase) {
-                        this.supabase.from('leave_requests').delete()
-                            .eq('tenant_id', this._tid())
-                            .eq('employee_id', csUser.id)
-                            .eq('slot_type', slotType)
-                            .eq('start_date', startDate)
-                            .then(({ error }) => {
-                                if (error) console.warn('⚠️ Could not delete CS bid from Supabase:', error.message);
-                                else console.log('✅ CS Bid deleted from Supabase');
-                            });
-                    }
-                    this.renderCorporateStaffBiddingView();
+
+                // 1. Optimistically remove from local state and persist immediately
+                const idx = this.state.bids.findIndex(bid =>
+                    bid.employeeId === csUser.id && bid.slotType === slotType && bid.startDate === startDate
+                );
+                if (idx !== -1) this.state.bids.splice(idx, 1);
+                this.saveState();
+                this.renderCorporateStaffBiddingView();
+
+                // 2. Delete from Supabase and AWAIT the result so a failure is surfaced
+                if (!this.supabase) {
+                    this.writeAuditLog('BID_REMOVED', { employee_id: csUser.id, slot_type: slotType, start_date: startDate, section: 'corporate_staff' });
+                    return;
                 }
+                const { error } = await this.supabase
+                    .from('leave_requests')
+                    .delete()
+                    .eq('tenant_id', this._tid())
+                    .eq('employee_id', csUser.id)
+                    .eq('slot_type', slotType)
+                    .eq('start_date', startDate);
+
+                if (error) {
+                    console.error('❌ CS Bid delete failed:', error.message);
+                    alert('Could not delete from server — please retry.');
+                    return;
+                }
+                console.log('✅ CS Bid deleted from Supabase');
+                this.writeAuditLog('BID_REMOVED', { employee_id: csUser.id, slot_type: slotType, start_date: startDate, section: 'corporate_staff' });
             },
 
             renderConfigureSlotsView() {
@@ -4081,12 +4109,10 @@
                                         ${this.state.months.map((month, monthIdx) => {
                                             const year = this.state.biddingYear;
                                             const pad = n => String(n).padStart(2,'0');
-                                            // 360-day rolling calendar: each "month" = exactly 30 days
-                                            const _s1 = new Date(year, 0, 1 + monthIdx * 30);
-                                            const _e1 = new Date(year, 0, 1 + monthIdx * 30 + 29);
-                                            const fmtD = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-                                            const defaultStart = fmtD(_s1);
-                                            const defaultEnd   = fmtD(_e1);
+                                            const toDateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+                                            // 360-day calendar: each "month" is a fixed 30-day block (Jan1=day1)
+                                            const defaultStart = toDateStr(new Date(year, 0, monthIdx*30 + 1));
+                                            const defaultEnd = toDateStr(new Date(year, 0, (monthIdx+1)*30));
                                             return `<tr class="hover:bg-gray-50">
                                                 <td class="border border-gray-200 px-3 py-2 font-semibold text-gray-800 bg-gray-50 whitespace-nowrap">${month}</td>
                                                 ${['SA','SB','SC'].map((slotId, si) => {
@@ -4252,11 +4278,13 @@
                     const hasEmployees = employeeDepts.includes(dept);
                     const employeeCount = this.state.employees.filter(e => (e.department || 'Unassigned') === dept).length;
                     
-                    // Calendar slots: Slot A, Slot B, Slot C (date range based)
+                    // Calendar slots: Slot A, Slot B, Slot C, Slot D (date range based)
+                    // A/B = staff with ≤5 years service · C/D = staff with >5 years service
                     const periods = [
                         { id: 'SA', label: 'Slot A', colorClass: 'green', borderColor: 'border-green-400', bgColor: 'bg-green-50' },
                         { id: 'SB', label: 'Slot B', colorClass: 'blue', borderColor: 'border-blue-400', bgColor: 'bg-blue-50' },
-                        { id: 'SC', label: 'Slot C', colorClass: 'purple', borderColor: 'border-purple-400', bgColor: 'bg-purple-50' }
+                        { id: 'SC', label: 'Slot C', colorClass: 'purple', borderColor: 'border-purple-400', bgColor: 'bg-purple-50' },
+                        { id: 'SD', label: 'Slot D', colorClass: 'orange', borderColor: 'border-orange-400', bgColor: 'bg-orange-50' }
                     ];
                     
                     html += `
@@ -4329,24 +4357,39 @@
                                             <th class="border border-gray-200 px-3 py-2 text-center font-semibold text-purple-700 bg-purple-50">Slot C — Start</th>
                                             <th class="border border-gray-200 px-3 py-2 text-center font-semibold text-purple-700 bg-purple-50">Slot C — End</th>
                                             <th class="border border-gray-200 px-3 py-2 text-center font-semibold text-purple-700 bg-purple-50">Slot C — Max</th>
+                                            <th class="border border-gray-200 px-2 py-2 text-center font-semibold text-orange-700 bg-orange-50">
+                                                <div class="flex flex-col items-center gap-1">
+                                                    <span>D — On</span>
+                                                    <label class="flex items-center gap-1 cursor-pointer" title="Toggle all Slot D months">
+                                                        <input type="checkbox"
+                                                            class="mark-all-checkbox w-3 h-3 accent-orange-600"
+                                                            data-dept="${dept}" data-slot="SD"
+                                                            onchange="app._markAllSlot(this)"
+                                                            title="Check/uncheck all Slot D months"
+                                                        />
+                                                        <span class="text-xs font-normal text-orange-600">All</span>
+                                                    </label>
+                                                </div>
+                                            </th>
+                                            <th class="border border-gray-200 px-3 py-2 text-center font-semibold text-orange-700 bg-orange-50">Slot D — Start</th>
+                                            <th class="border border-gray-200 px-3 py-2 text-center font-semibold text-orange-700 bg-orange-50">Slot D — End</th>
+                                            <th class="border border-gray-200 px-3 py-2 text-center font-semibold text-orange-700 bg-orange-50">Slot D — Max</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         ${this.state.months.map((month, monthIdx) => {
                                             const year = this.state.biddingYear;
+                                            // Default dates follow the 360-day calendar (30-day blocks per month, Jan1=day1)
                                             const pad = n => String(n).padStart(2, '0');
-                                            // 360-day rolling calendar: each "month" = exactly 30 days
-                                            const _s2 = new Date(year, 0, 1 + monthIdx * 30);
-                                            const _e2 = new Date(year, 0, 1 + monthIdx * 30 + 29);
-                                            const fmtD2 = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-                                            const defaultStart = fmtD2(_s2);
-                                            const defaultEnd   = fmtD2(_e2);
+                                            const toDateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+                                            const defaultStart = toDateStr(new Date(year, 0, monthIdx*30 + 1));
+                                            const defaultEnd   = toDateStr(new Date(year, 0, (monthIdx+1)*30));
                                             return `
                                                 <tr class="hover:bg-gray-50">
                                                     <td class="border border-gray-200 px-3 py-2 font-semibold text-gray-800 bg-gray-50 whitespace-nowrap">${month}</td>
-                                                    ${['SA','SB','SC'].map((slotId, si) => {
-                                                        const colors = ['border-green-300 focus:border-green-500','border-blue-300 focus:border-blue-500','border-purple-300 focus:border-purple-500'];
-                                                        const bgCols = ['bg-green-50','bg-blue-50','bg-purple-50'];
+                                                    ${['SA','SB','SC','SD'].map((slotId, si) => {
+                                                        const colors = ['border-green-300 focus:border-green-500','border-blue-300 focus:border-blue-500','border-purple-300 focus:border-purple-500','border-orange-300 focus:border-orange-500'];
+                                                        const bgCols = ['bg-green-50','bg-blue-50','bg-purple-50','bg-orange-50'];
                                                         const savedStart    = this.state.slotCapacities[`cal-${dept}-${month}-${slotId}-start`];
                                                         const savedEnd      = this.state.slotCapacities[`cal-${dept}-${month}-${slotId}-end`];
                                                         const savedCapacity = this.state.slotCapacities[`cal-${dept}-${month}-${slotId}-capacity`];
@@ -4411,10 +4454,12 @@
                             <p class="font-semibold text-yellow-800 mb-2">📋 Calendar Configuration Summary:</p>
                             <p class="text-sm text-yellow-700">
                                 • Departments: ${departmentsToConfigure.length} department${departmentsToConfigure.length === 1 ? '' : 's'}<br>
-                                • Bid slots per department: 3 (Slot A, Slot B, Slot C) × 12 months<br>
+                                • Bid slots per department: 4 (Slot A, Slot B, Slot C, Slot D) × 12 months<br>
+                                • Slot A &amp; B are visible to staff with ≤5 years of service<br>
+                                • Slot C &amp; D are visible to staff with &gt;5 years of service<br>
                                 • Toggle <strong>On</strong> to make a slot visible to Operations Staff for that month<br>
                                 • Each enabled slot: fixed date range and max capacity seen by staff when bidding<br>
-                                • Total configurations: ${departmentsToConfigure.length * 3} bid slots × 12 months
+                                • Total configurations: ${departmentsToConfigure.length * 4} bid slots × 12 months
                             </p>
                         </div>
                         
@@ -4432,6 +4477,214 @@
                 return html;
             },
             
+            // ===== SENIORITY DATE REPORT (OPS Staff only — excludes Maintenance) =====
+            renderSeniorityReportView() {
+                const content = document.getElementById('contentArea');
+
+                const calcYears = (seniorityDate) => {
+                    if (!seniorityDate) return 0;
+                    const joinDate = new Date(seniorityDate);
+                    if (isNaN(joinDate.getTime())) return 0;
+                    return (new Date() - joinDate) / (1000 * 60 * 60 * 24 * 365.25);
+                };
+
+                // OPS staff = this.state.employees, plus Maintenance staff from the
+                // separate maintenanceStaffUsers array (tagged with isMaintenance for filtering/export)
+                const opsRows = (this.state.employees || []).map(e => {
+                    const years = calcYears(e.seniorityDate);
+                    return {
+                        id: e.id,
+                        name: e.name || '—',
+                        department: e.department || 'Unassigned',
+                        position: e.position || '—',
+                        seniorityDate: e.seniorityDate || '',
+                        years,
+                        eligibleSlots: years > 5 ? 'Slot C / Slot D' : 'Slot A / Slot B',
+                        isMaintenance: false
+                    };
+                });
+
+                const maintRows = (this.state.maintenanceStaffUsers || []).map(e => {
+                    const years = calcYears(e.seniorityDate);
+                    return {
+                        id: e.id,
+                        name: e.name || '—',
+                        department: e.department || 'Maintenance',
+                        position: e.position || '—',
+                        seniorityDate: e.seniorityDate || '',
+                        years,
+                        eligibleSlots: years > 5 ? 'Slot C / Slot D' : 'Slot A / Slot B',
+                        isMaintenance: true
+                    };
+                });
+
+                const rows = [...opsRows, ...maintRows];
+
+                // Sort: most senior (earliest date) first
+                rows.sort((a, b) => {
+                    const da = a.seniorityDate ? new Date(a.seniorityDate) : new Date('9999-12-31');
+                    const db = b.seniorityDate ? new Date(b.seniorityDate) : new Date('9999-12-31');
+                    return da - db;
+                });
+
+                const seniorCount = rows.filter(r => r.years > 5).length;
+                const juniorCount = rows.length - seniorCount;
+                const missingCount = rows.filter(r => !r.seniorityDate).length;
+
+                // Filters
+                const deptOptions = [...new Set(rows.map(r => r.department))].sort();
+
+                content.innerHTML = `
+                    <div class="max-w-7xl mx-auto">
+                        <div class="bg-white rounded-xl shadow-xl p-6 mb-6">
+                            <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+                                <div>
+                                    <h2 class="text-2xl font-bold">📋 Seniority Date Report</h2>
+                                    <p class="text-sm text-gray-500 mt-1">All Operations Staff and Maintenance Staff</p>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button onclick="app.exportSeniorityReportCSV()" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700">
+                                        ⬇ Export Excel
+                                    </button>
+                                    <button onclick="app.setActiveView('dashboard')" class="px-4 py-2 bg-gray-500 text-white rounded-lg text-sm font-semibold hover:bg-gray-600">
+                                        ← Back
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                                <div class="bg-gray-50 p-4 rounded-lg">
+                                    <p class="text-2xl font-bold">${rows.length}</p>
+                                    <p class="text-sm text-gray-600">Total Staff</p>
+                                </div>
+                                <div class="bg-blue-50 p-4 rounded-lg">
+                                    <p class="text-2xl font-bold text-blue-700">${rows.filter(r => r.isMaintenance).length}</p>
+                                    <p class="text-sm text-gray-600">Maintenance Staff</p>
+                                </div>
+                                <div class="bg-orange-50 p-4 rounded-lg">
+                                    <p class="text-2xl font-bold text-orange-700">${seniorCount}</p>
+                                    <p class="text-sm text-gray-600">&gt;5 yrs — Slot C/D</p>
+                                </div>
+                                <div class="bg-green-50 p-4 rounded-lg">
+                                    <p class="text-2xl font-bold text-green-700">${juniorCount}</p>
+                                    <p class="text-sm text-gray-600">≤5 yrs — Slot A/B</p>
+                                </div>
+                                <div class="bg-red-50 p-4 rounded-lg">
+                                    <p class="text-2xl font-bold text-red-700">${missingCount}</p>
+                                    <p class="text-sm text-gray-600">Missing Seniority Date</p>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap gap-3 mb-4">
+                                <input type="text" id="seniorityReportSearch" placeholder="Search by name or ID…"
+                                    oninput="app._filterSeniorityReport()"
+                                    class="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm flex-1 min-w-[200px]" />
+                                <select id="seniorityReportDeptFilter" onchange="app._filterSeniorityReport()" class="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm">
+                                    <option value="all">All Departments</option>
+                                    ${deptOptions.map(d => `<option value="${this._escHtml(d)}">${this._escHtml(d)}</option>`).join('')}
+                                </select>
+                                <select id="seniorityReportEligFilter" onchange="app._filterSeniorityReport()" class="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm">
+                                    <option value="all">All Eligibility</option>
+                                    <option value="senior">&gt;5 yrs — Slot C/D</option>
+                                    <option value="junior">≤5 yrs — Slot A/B</option>
+                                </select>
+                                <select id="seniorityReportTypeFilter" onchange="app._filterSeniorityReport()" class="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm">
+                                    <option value="all">All Staff Types</option>
+                                    <option value="ops">Operations Staff</option>
+                                    <option value="maintenance">Maintenance Staff</option>
+                                </select>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm border-collapse" id="seniorityReportTable">
+                                    <thead>
+                                        <tr class="bg-gray-100 text-left">
+                                            <th class="border border-gray-200 px-3 py-2 font-semibold text-gray-700">#</th>
+                                            <th class="border border-gray-200 px-3 py-2 font-semibold text-gray-700">Staff ID</th>
+                                            <th class="border border-gray-200 px-3 py-2 font-semibold text-gray-700">Name</th>
+                                            <th class="border border-gray-200 px-3 py-2 font-semibold text-gray-700">Department</th>
+                                            <th class="border border-gray-200 px-3 py-2 font-semibold text-gray-700">Position</th>
+                                            <th class="border border-gray-200 px-3 py-2 font-semibold text-gray-700">Type</th>
+                                            <th class="border border-gray-200 px-3 py-2 font-semibold text-gray-700">Seniority Date</th>
+                                            <th class="border border-gray-200 px-3 py-2 font-semibold text-gray-700">Years of Service</th>
+                                            <th class="border border-gray-200 px-3 py-2 font-semibold text-gray-700">Eligible Slots</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="seniorityReportBody">
+                                        ${rows.map((r, idx) => this._seniorityReportRow(r, idx)).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-3">Showing <span id="seniorityReportCount">${rows.length}</span> of ${rows.length} staff. Sorted by seniority date (most senior first).</p>
+                        </div>
+                    </div>
+                `;
+
+                // Cache rows on window for the filter/export functions to reuse without re-deriving
+                window._seniorityReportRows = rows;
+            },
+
+            _seniorityReportRow(r, idx) {
+                const badgeClass = r.years > 5 ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800';
+                const missingClass = !r.seniorityDate ? 'bg-red-50' : (idx % 2 === 0 ? '' : 'bg-gray-50');
+                return `
+                    <tr class="${missingClass} hover:bg-indigo-50 transition-colors" data-dept="${this._escHtml(r.department)}" data-elig="${r.years > 5 ? 'senior' : 'junior'}" data-type="${r.isMaintenance ? 'maintenance' : 'ops'}" data-search="${this._escHtml((r.name + ' ' + r.id).toLowerCase())}">
+                        <td class="border border-gray-200 px-3 py-2 text-gray-500 text-center">${idx + 1}</td>
+                        <td class="border border-gray-200 px-3 py-2 font-mono text-xs text-gray-700">${this._escHtml(r.id)}</td>
+                        <td class="border border-gray-200 px-3 py-2 font-semibold text-gray-800">${this._escHtml(r.name)}</td>
+                        <td class="border border-gray-200 px-3 py-2 text-gray-600">${this._escHtml(r.department)}</td>
+                        <td class="border border-gray-200 px-3 py-2 text-gray-600">${this._escHtml(r.position)}</td>
+                        <td class="border border-gray-200 px-3 py-2">${r.isMaintenance ? '<span class="px-2 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800">Maintenance</span>' : '<span class="px-2 py-1 rounded text-xs font-semibold bg-gray-100 text-gray-700">Operations</span>'}</td>
+                        <td class="border border-gray-200 px-3 py-2 text-gray-700">${r.seniorityDate ? this._escHtml(r.seniorityDate.slice(0,10)) : '<span class="text-red-500 font-semibold">Missing</span>'}</td>
+                        <td class="border border-gray-200 px-3 py-2 text-center font-semibold text-gray-800">${r.years.toFixed(1)}</td>
+                        <td class="border border-gray-200 px-3 py-2"><span class="px-2 py-1 rounded text-xs font-semibold ${badgeClass}">${r.eligibleSlots}</span></td>
+                    </tr>`;
+            },
+
+            _filterSeniorityReport() {
+                const q = (document.getElementById('seniorityReportSearch')?.value || '').toLowerCase().trim();
+                const dept = document.getElementById('seniorityReportDeptFilter')?.value || 'all';
+                const elig = document.getElementById('seniorityReportEligFilter')?.value || 'all';
+                const type = document.getElementById('seniorityReportTypeFilter')?.value || 'all';
+                const rowsEls = document.querySelectorAll('#seniorityReportBody tr');
+                let visible = 0;
+                rowsEls.forEach(tr => {
+                    const matchesQ    = !q || (tr.dataset.search || '').includes(q);
+                    const matchesDept = dept === 'all' || tr.dataset.dept === dept;
+                    const matchesElig = elig === 'all' || tr.dataset.elig === elig;
+                    const matchesType = type === 'all' || tr.dataset.type === type;
+                    const show = matchesQ && matchesDept && matchesElig && matchesType;
+                    tr.style.display = show ? '' : 'none';
+                    if (show) visible++;
+                });
+                const countEl = document.getElementById('seniorityReportCount');
+                if (countEl) countEl.textContent = visible;
+            },
+
+            exportSeniorityReportCSV() {
+                const rows = window._seniorityReportRows || [];
+                if (rows.length === 0) {
+                    alert('No staff data to export.');
+                    return;
+                }
+                const wsData = [
+                    ['Staff ID', 'Name', 'Department', 'Position', 'Staff Type', 'Seniority Date', 'Years of Service', 'Eligible Slots']
+                ];
+                rows.forEach(r => {
+                    wsData.push([
+                        r.id, r.name, r.department, r.position,
+                        r.isMaintenance ? 'Maintenance' : 'Operations',
+                        r.seniorityDate ? r.seniorityDate.slice(0, 10) : 'Missing',
+                        r.years.toFixed(1),
+                        r.eligibleSlots
+                    ]);
+                });
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Seniority Report');
+                XLSX.writeFile(wb, `Seniority_Report_${this.state.biddingYear}.xlsx`);
+            },
+
             async copyToAllMonths() {
                 const filter = document.getElementById('deptFilter')?.value || 'all';
                 const employeeDepts = [...new Set(this.state.employees.map(e => e.department || 'Unassigned'))];
@@ -4448,7 +4701,7 @@
                 const januaryValues = {};
                 
                 departmentsToCopy.forEach(dept => {
-                    ['A', 'B', 'C'].forEach(slot => {
+                    ['A', 'B', 'C', 'D'].forEach(slot => {
                         const key = `January-${dept}-${slot}`;
                         januaryValues[`${dept}-${slot}`] = this.state.slotCapacities[key] || 1;
                     });
@@ -4459,7 +4712,7 @@
                     if (month === 'January') return; // Skip January since it's our source
                     
                     departmentsToCopy.forEach(dept => {
-                        ['A', 'B', 'C'].forEach(slot => {
+                        ['A', 'B', 'C', 'D'].forEach(slot => {
                             const key = `${month}-${dept}-${slot}`;
                             this.state.slotCapacities[key] = januaryValues[`${dept}-${slot}`];
                         });
@@ -4611,27 +4864,9 @@
                     const allBids = [...regularRows, ...maintRows];
                     console.log(`✅ Fetched ${regularRows.length} regular + ${maintRows.length} maintenance bids from Supabase`);
 
-                    const mapBid = (bid, sourceTable) => ({
-                        employeeId: bid.employee_id,
-                        employeeName: bid.employee_name || this.state.employees.find(e => e.id === bid.employee_id)?.name ||
-                                      (this.state.maintenanceStaffUsers || []).find(e => e.id === bid.employee_id)?.name || '',
-                        seniorityDate: this.state.employees.find(e => e.id === bid.employee_id)?.seniorityDate ||
-                                       (this.state.maintenanceStaffUsers || []).find(e => e.id === bid.employee_id)?.seniorityDate || '',
-                        department: bid.department || this.state.employees.find(e => e.id === bid.employee_id)?.department ||
-                                    (this.state.maintenanceStaffUsers || []).find(e => e.id === bid.employee_id)?.department || '',
-                        position: this.state.employees.find(e => e.id === bid.employee_id)?.position ||
-                                  (this.state.maintenanceStaffUsers || []).find(e => e.id === bid.employee_id)?.position || '',
-                        slotType: bid.slot_type || 'slotA',
-                        startDate: bid.start_date,
-                        endDate: bid.end_date,
-                        days: bid.days_requested,
-                        timestamp: bid.created_at,
-                        _sourceTable: sourceTable
-                    });
-
                     this.state.bids = [
-                        ...regularRows.map(b => mapBid(b, 'leave_requests')),
-                        ...maintRows.map(b => mapBid(b, 'maint_leave_requests'))
+                        ...regularRows.map(b => this._mapRemoteBid(b, 'leave_requests')),
+                        ...maintRows.map(b => this._mapRemoteBid(b, 'maint_leave_requests'))
                     ];
 
                     this.saveState();
@@ -4744,13 +4979,14 @@
                         return name.includes(q) || id.includes(q);
                     });
                 const colorMap = { 
-                    slotA: 'bg-green-100 text-green-800', slotB: 'bg-blue-100 text-blue-800', slotC: 'bg-purple-100 text-purple-800',
-                    SA:    'bg-green-100 text-green-800', SB:    'bg-blue-100 text-blue-800', SC:    'bg-purple-100 text-purple-800'
+                    slotA: 'bg-green-100 text-green-800', slotB: 'bg-blue-100 text-blue-800', slotC: 'bg-purple-100 text-purple-800', slotD: 'bg-orange-100 text-orange-800',
+                    SA:    'bg-green-100 text-green-800', SB:    'bg-blue-100 text-blue-800', SC:    'bg-purple-100 text-purple-800', SD:    'bg-orange-100 text-orange-800'
                 };
                 const _slotLabel = (st) => {
                     if (st === 'slotA' || st === 'SA') return 'Slot A';
                     if (st === 'slotB' || st === 'SB') return 'Slot B';
                     if (st === 'slotC' || st === 'SC') return 'Slot C';
+                    if (st === 'slotD' || st === 'SD') return 'Slot D';
                     if (st === 'gcCustom') return '⭐ Custom';
                     if (st === 'csCustom') return '🏢 Custom';
                     return st || '—';
@@ -4845,7 +5081,7 @@
                 // Pause polling during delete to avoid race condition where the
                 // 15-second auto-refresh fetches from Supabase before the delete completes
                 // and overwrites local state — causing the bid to reappear.
-                this.stopAdminPolling();
+                this._stopAdminLive();
 
                 // Remove from local state immediately
                 this.state.bids = this.state.bids.filter(b =>
@@ -4871,8 +5107,8 @@
 
                 this._liveUpdateAdminPanel();
 
-                // Resume polling only after Supabase delete is confirmed done
-                this.startAdminPolling();
+                // Resume realtime subscription only after Supabase delete is confirmed done
+                this._startAdminLive();
             },
 
             _filterBidsTable(query) {
@@ -4907,7 +5143,7 @@
                 if (!confirm(`⚠️ Delete ALL ${tabBids.length} ${sectionName} bids?\n\nBids in other sections will NOT be affected.\nThis cannot be undone.`)) return;
 
                 // Pause polling to avoid race condition
-                this.stopAdminPolling();
+                this._stopAdminLive();
 
                 // Remove only the matching bids from local state
                 this.state.bids = this.state.bids.filter(bid => {
@@ -4944,15 +5180,15 @@
                 }
 
                 this._liveUpdateAdminPanel();
-                // Resume polling after delete is confirmed done
-                this.startAdminPolling();
+                // Resume realtime subscription after delete is confirmed done
+                this._startAdminLive();
                 alert(`✅ All ${sectionName} bids have been deleted.`);
             },
 
             async deleteAllBids() {
                 if (!confirm(`⚠️ Delete ALL ${this.state.bids.length} bids?\n\nThis will permanently remove every bid from the database and cannot be undone.`)) return;
 
-                this.stopAdminPolling();
+                this._stopAdminLive();
                 this.state.bids = [];
                 this.saveState();
 
@@ -4967,7 +5203,7 @@
                 }
 
                 this._liveUpdateAdminPanel();
-                this.startAdminPolling();
+                this._startAdminLive();
                 alert('✅ All bids have been deleted.');
             },
 
@@ -4991,6 +5227,211 @@
                 }
             },
 
+            // ==================== ADMIN REALTIME (Supabase postgres_changes) ====================
+            // Replaces the 15-second polling loop with push-based updates. Falls back
+            // to a 30-second poll if Realtime disconnects, so the admin view still
+            // refreshes. Used by the planner/admin view only — employee/GC/CS/maintenance
+            // bidding views are unchanged.
+
+            _mapRemoteBid(bid, sourceTable) {
+                return {
+                    employeeId: bid.employee_id,
+                    employeeName: bid.employee_name ||
+                        this.state.employees.find(e => e.id === bid.employee_id)?.name ||
+                        (this.state.maintenanceStaffUsers || []).find(e => e.id === bid.employee_id)?.name || '',
+                    seniorityDate: this.state.employees.find(e => e.id === bid.employee_id)?.seniorityDate ||
+                        (this.state.maintenanceStaffUsers || []).find(e => e.id === bid.employee_id)?.seniorityDate || '',
+                    department: bid.department ||
+                        this.state.employees.find(e => e.id === bid.employee_id)?.department ||
+                        (this.state.maintenanceStaffUsers || []).find(e => e.id === bid.employee_id)?.department || '',
+                    position: this.state.employees.find(e => e.id === bid.employee_id)?.position ||
+                        (this.state.maintenanceStaffUsers || []).find(e => e.id === bid.employee_id)?.position || '',
+                    slotType: bid.slot_type || 'slotA',
+                    startDate: bid.start_date,
+                    endDate: bid.end_date,
+                    days: bid.days_requested,
+                    timestamp: bid.created_at,
+                    _sourceTable: sourceTable
+                };
+            },
+
+            startAdminRealtime() {
+                if (!this.supabase || this._adminRealtimeChannel) return;
+
+                const applyChange = (payload, sourceTable) => {
+                    if (!payload?.new && !payload?.old) return;
+
+                    if (payload.eventType === 'DELETE') {
+                        const old = payload.old;
+                        this.state.bids = this.state.bids.filter(b =>
+                            !(b.employeeId === old.employee_id &&
+                              b.slotType   === old.slot_type   &&
+                              b.startDate  === old.start_date  &&
+                              b._sourceTable === sourceTable)
+                        );
+                    } else if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                        const row = payload.new;
+                        const mapped = this._mapRemoteBid(row, sourceTable);
+                        this.state.bids = [
+                            ...this.state.bids.filter(b =>
+                                !(b.employeeId === mapped.employeeId &&
+                                  b.slotType   === mapped.slotType   &&
+                                  b.startDate  === mapped.startDate  &&
+                                  b._sourceTable === sourceTable)),
+                            mapped
+                        ];
+                    }
+                    this._liveUpdateAdminPanel();
+                    this._setAdminStatus('live');
+                };
+
+                this._adminRealtimeChannel = this.supabase
+                    .channel('admin-bids')
+                    .on('postgres_changes',
+                        { event: '*', schema: 'public', table: 'leave_requests' },
+                        payload => applyChange(payload, 'leave_requests'))
+                    .on('postgres_changes',
+                        { event: '*', schema: 'public', table: 'maint_leave_requests' },
+                        payload => applyChange(payload, 'maint_leave_requests'))
+                    .subscribe(status => {
+                        console.log('🔌 Admin Realtime status:', status);
+                        if (status === 'SUBSCRIBED') this._setAdminStatus('live');
+                        if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                            this._setAdminStatus('reconnecting');
+                        }
+                    });
+            },
+
+            stopAdminRealtime() {
+                if (this._adminRealtimeChannel && this.supabase) {
+                    this.supabase.removeChannel(this._adminRealtimeChannel);
+                    this._adminRealtimeChannel = null;
+                    console.log('⏹ Admin Realtime stopped');
+                }
+            },
+
+            startLcRealtime() {
+                if (!this.supabase || this._lcRealtimeChannel) return;
+
+                const applyLcChange = (payload, sourceTable) => {
+                    if (!payload?.new && !payload?.old) return;
+
+                    if (payload.eventType === 'DELETE') {
+                        const old = payload.old;
+                        this.state.bids = this.state.bids.filter(b =>
+                            !(b.employeeId === old.employee_id &&
+                              b.slotType   === old.slot_type   &&
+                              b.startDate  === old.start_date  &&
+                              b._sourceTable === sourceTable)
+                        );
+                    } else if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                        const row = payload.new;
+                        const mapped = this._mapRemoteBid(row, sourceTable);
+                        this.state.bids = [
+                            ...this.state.bids.filter(b =>
+                                !(b.employeeId === mapped.employeeId &&
+                                  b.slotType   === mapped.slotType   &&
+                                  b.startDate  === mapped.startDate  &&
+                                  b._sourceTable === sourceTable)),
+                            mapped
+                        ];
+                    }
+                    // Re-render the tracker and update the live badge timestamp
+                    if (typeof window.lcRender === 'function') window.lcRender();
+                    this._setLcStatus('live');
+                };
+
+                this._lcRealtimeChannel = this.supabase
+                    .channel('lc-tracker-bids')
+                    .on('postgres_changes',
+                        { event: '*', schema: 'public', table: 'leave_requests' },
+                        payload => applyLcChange(payload, 'leave_requests'))
+                    .on('postgres_changes',
+                        { event: '*', schema: 'public', table: 'golden_command_users' },
+                        () => { if (typeof window.lcRender === 'function') window.lcRender(); })
+                    .on('postgres_changes',
+                        { event: '*', schema: 'public', table: 'corporate_staff_employees' },
+                        () => { if (typeof window.lcRender === 'function') window.lcRender(); })
+                    .subscribe(status => {
+                        console.log('🔌 LC Tracker Realtime:', status);
+                        if (status === 'SUBSCRIBED') this._setLcStatus('live');
+                        if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                            this._setLcStatus('reconnecting');
+                            // Retry after 5s
+                            setTimeout(() => {
+                                if (this.state.activeView === 'leaveDashboard') {
+                                    this.supabase.removeChannel(this._lcRealtimeChannel);
+                                    this._lcRealtimeChannel = null;
+                                    this.startLcRealtime();
+                                }
+                            }, 5000);
+                        }
+                    });
+            },
+
+            stopLcRealtime() {
+                if (this._lcRealtimeChannel && this.supabase) {
+                    this.supabase.removeChannel(this._lcRealtimeChannel);
+                    this._lcRealtimeChannel = null;
+                    console.log('⏹ LC Tracker Realtime stopped');
+                }
+                if (this._lcFallbackTimer) {
+                    clearInterval(this._lcFallbackTimer);
+                    this._lcFallbackTimer = null;
+                }
+            },
+
+            _setLcStatus(state) {
+                const badge = document.getElementById('lcLiveBadge');
+                if (!badge) return;
+                if (state === 'live') {
+                    badge.innerHTML = '&#9679; LIVE &mdash; <span id="lcLastRefresh">' + new Date().toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) + '</span>';
+                    badge.style.background = 'rgba(46,204,154,.25)';
+                    badge.style.borderColor = 'rgba(46,204,154,.6)';
+                    badge.style.color = '#7eedc8';
+                } else if (state === 'reconnecting') {
+                    badge.innerHTML = '&#9679; Reconnecting…';
+                    badge.style.background = 'rgba(255,195,80,.2)';
+                    badge.style.borderColor = 'rgba(255,195,80,.5)';
+                    badge.style.color = '#ffd98a';
+                }
+            },
+
+            _setAdminStatus(state) {
+                const el = document.getElementById('adminLiveBadge');
+                if (!el) return;
+                if (state === 'live') {
+                    el.innerHTML = `<span class="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                                    Live &mdash; realtime updates
+                                    &nbsp;|&nbsp; Last: <span id="adminLastRefresh">${new Date().toLocaleTimeString()}</span>`;
+                } else if (state === 'reconnecting') {
+                    el.innerHTML = `<span class="inline-block w-2 h-2 rounded-full bg-yellow-500"></span>
+                                    Reconnecting &mdash; fallback polling every 30s`;
+                }
+            },
+
+            _startAdminLive() {
+                this.stopAdminPolling();
+                this.startAdminRealtime();
+                // Fallback poll every 30s while realtime is active — only fires if
+                // realtime events stop arriving for any reason (network drop, server hiccup).
+                if (this._adminFallbackTimer) clearInterval(this._adminFallbackTimer);
+                this._adminFallbackTimer = setInterval(() => {
+                    if (this.state.activeView === 'admin' && this.state.userType === 'planner') {
+                        this.refreshBidsFromSupabase(true);
+                    }
+                }, 30000);
+            },
+
+            _stopAdminLive() {
+                this.stopAdminRealtime();
+                this.stopAdminPolling();
+                if (this._adminFallbackTimer) {
+                    clearInterval(this._adminFallbackTimer);
+                    this._adminFallbackTimer = null;
+                }
+            },
+
             renderAdminView() {
                 const content = document.getElementById('contentArea');
                 // Use exact same department list as Configure Slots (L3/L46/L5 codes only)
@@ -5005,7 +5446,7 @@
                         <div class="bg-white rounded-xl shadow-xl p-6">
                             <div class="flex items-center justify-between mb-6">
                                 <h2 class="text-2xl font-bold">Admin Panel</h2>
-                                <div class="flex items-center gap-2 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg text-sm text-green-700">
+                                <div id="adminLiveBadge" class="flex items-center gap-2 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg text-sm text-green-700">
                                     <span class="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
                                     Live &mdash; auto-refreshes every 15s &nbsp;|&nbsp; Last: <span id="adminLastRefresh">${new Date().toLocaleTimeString()}</span>
                                 </div>
@@ -5018,7 +5459,7 @@
                                     id="biddingDeadline"
                                     value="${this.state.biddingDeadline}"
                                     class="w-full px-4 py-2 border-2 border-blue-300 rounded-lg"
-                                    onchange="app.state.biddingDeadline = this.value; app.saveConfigToSupabase()"
+                                    onchange="app.setBiddingDeadline(this.value)"
                                 />
                             </div>
 
@@ -5435,22 +5876,31 @@
                     const currentUsers = this.state.corporateStaffUsers || [];
                     // Delete-then-insert (same reliable pattern as oncall_dates)
                     const { error: delError } = await this.supabase
-                        .from('corporate_staff_users')
+                        .from('corporate_staff_employees')
                         .delete()
                         .eq('tenant_id', this._tid());
                     if (delError) throw delError;
                     if (currentUsers.length > 0) {
                         const { error: insError } = await this.supabase
-                            .from('corporate_staff_users')
+                            .from('corporate_staff_employees')
                             .insert(currentUsers.map(u => ({
-                                tenant_id: this._tid(),
-                                id:        u.id,
-                                name:      u.name,
-                                password:  u.password || u.id,
+                                tenant_id:        this._tid(),
+                                id:               u.id,
+                                name:             u.name,
+                                department:       u.department || 'Corporate Staff',
+                                position:         u.position || '',
+                                role:             u.role || '',
+                                nationality:      u.nationality || '',
+                                gender:           u.gender || '',
+                                seniority_date:   u.seniorityDate || '2000-01-01',
+                                total_leave_days: u.totalLeaveDays ?? 30,
+                                used_leave_days:  u.usedLeaveDays ?? 0,
+                                password:         u.password || u.id,
+                                email:            u.email || '',
                             })));
                         if (insError) throw insError;
                     }
-                    console.log(`✅ Corporate Staff users saved (${currentUsers.length} users)`);
+                    console.log(`✅ Corporate Staff roster saved (${currentUsers.length} records)`);
                 } catch (e) {
                     console.warn('⚠️ Corporate Staff users save failed:', e.message);
                 }
@@ -5522,10 +5972,6 @@
                 
                 const getEmployeeEntitlement = (employee) => {
                     if (!employee || !employee.seniorityDate) return 30;
-                    // Corporate Staff and Golden Command are capped at 30 days regardless of seniority
-                    const csIds = (this.state.corporateStaffUsers || []).map(u => u.id);
-                    const gcIds = (this.state.goldenCommandUsers  || []).map(u => u.id);
-                    if (csIds.includes(employee.id) || gcIds.includes(employee.id)) return 30;
                     const yearsOfService = calculateYearsOfService(employee.seniorityDate);
                     return yearsOfService >= 5 ? 35 : 30;
                 };
@@ -5561,7 +6007,7 @@
                     const month = withoutSlot.slice(monthDash + 1);
                     const dept = withoutSlot.slice(0, monthDash);
                     if (!months.includes(month)) return null;
-                    const slotLetter = slotId === 'SA' ? 'A' : slotId === 'SB' ? 'B' : slotId === 'SC' ? 'C' : null;
+                    const slotLetter = slotId === 'SA' ? 'A' : slotId === 'SB' ? 'B' : slotId === 'SC' ? 'C' : slotId === 'SD' ? 'D' : null;
                     if (!slotLetter) return null;
                     return { dept, month, slotLetter, field };
                 };
@@ -5589,7 +6035,7 @@
                     if (!start || !end)  return; // dates not configured — skip
 
                     if (!slotAvailability[month]) slotAvailability[month] = {};
-                    if (!slotAvailability[month][dept]) slotAvailability[month][dept] = { A: 0, B: 0, C: 0 };
+                    if (!slotAvailability[month][dept]) slotAvailability[month][dept] = { A: 0, B: 0, C: 0, D: 0 };
                     slotAvailability[month][dept][slotLetter] = capacity;
 
                     if (!slotDates[dept]) slotDates[dept] = {};
@@ -5921,6 +6367,13 @@
                     const assignedDateKeys = new Set(awarded[employee.id].map(a => `${a.startDate}|${a.endDate}`));
                     let localDays = assignedDays;
 
+                    // Seniority gate: ≤5 years → only Slot A/B eligible for auto-assignment.
+                    // >5 years → only Slot C/D eligible. Mirrors the bidding-time restriction.
+                    const empYearsForAssign = employee.seniorityDate
+                        ? (new Date() - new Date(employee.seniorityDate)) / (1000 * 60 * 60 * 24 * 365.25)
+                        : 0;
+                    const eligibleSlotTypes = empYearsForAssign > 5 ? ['C', 'D'] : ['A', 'B'];
+
                     while (awarded[employee.id].length < 2) {
                         let slotAssigned = false;
 
@@ -5928,7 +6381,7 @@
                             if (slotAssigned) break;
                             if (!slotAvailability[searchMonth]?.[department]) continue;
 
-                            for (const slotType of ['A', 'B', 'C']) {
+                            for (const slotType of eligibleSlotTypes) {
                                 if (slotAvailability[searchMonth][department][slotType] <= 0) continue;
 
                                 const potential = assignSlotToEmployee(employee, searchMonth, slotType, awarded[employee.id].length + 1);
@@ -6480,8 +6933,7 @@
                     await this.saveConfigToSupabase(); // push reset state to Supabase
                     // Reset UI
                     document.getElementById('userInfo').classList.add('hidden');
-                    const _pnHide2 = document.getElementById('plannerNav');
-                    _pnHide2.classList.add('hidden'); _pnHide2.style.display = '';
+                    document.getElementById('plannerNav').classList.add('hidden');
                     document.getElementById('employeeNav').classList.add('hidden');
                     document.getElementById('loginView').classList.remove('hidden');
                     
@@ -6528,7 +6980,8 @@
                 const colorMap = {
                     SA: { border:'border-green-400', bg:'bg-green-50', badge:'bg-green-600', text:'text-green-800', label:'Slot A' },
                     SB: { border:'border-blue-400',  bg:'bg-blue-50',  badge:'bg-blue-600',  text:'text-blue-800',  label:'Slot B' },
-                    SC: { border:'border-purple-400',bg:'bg-purple-50',badge:'bg-purple-600',text:'text-purple-800',label:'Slot C' }
+                    SC: { border:'border-purple-400',bg:'bg-purple-50',badge:'bg-purple-600',text:'text-purple-800',label:'Slot C' },
+                    SD: { border:'border-orange-400',bg:'bg-orange-50',badge:'bg-orange-600',text:'text-orange-800',label:'Slot D' }
                 };
 
                 const isEnabledIn = (store, prefix, dept, sid) => {
@@ -6540,7 +6993,7 @@
                 };
 
                 const buildSlotDefsIn = (store, prefix, deptKey) => {
-                    return ['SA','SB','SC'].map(sid => {
+                    return ['SA','SB','SC','SD'].map(sid => {
                         if (!isEnabledIn(store, prefix, deptKey, sid)) return null;
                         const start = store[prefix + deptKey + '-' + month + '-' + sid + '-start'];
                         const end   = store[prefix + deptKey + '-' + month + '-' + sid + '-end'];
@@ -6604,7 +7057,7 @@
                 const bidCount = {};
                 if (resolvedDept) {
                     this.state.bids.forEach(b => {
-                        ['SA','SB','SC'].forEach(sid => {
+                        ['SA','SB','SC','SD'].forEach(sid => {
                             const s = caps[activePrefix + resolvedDept + '-' + month + '-' + sid + '-start'];
                             const e = caps[activePrefix + resolvedDept + '-' + month + '-' + sid + '-end'];
                             if (s && e && b.startDate === s && b.endDate === e)
@@ -6618,6 +7071,22 @@
                     bidsPlaced: bidCount[s.sid] || 0
                 }));
 
+                // Seniority gate (OPS staff only — Maintenance is unaffected):
+                //   ≤5 years of service → can only see/bid Slot A & Slot B
+                //   >5 years of service → can only see/bid Slot C & Slot D
+                const slotDefsBeforeGate = slotDefs;
+                let empYearsForGate = 0;
+                if (!isMaint) {
+                    empYearsForGate = emp?.seniorityDate
+                        ? (new Date() - new Date(emp.seniorityDate)) / (1000 * 60 * 60 * 24 * 365.25)
+                        : 0;
+                    if (empYearsForGate > 5) {
+                        slotDefs = slotDefs.filter(s => s.sid === 'SC' || s.sid === 'SD');
+                    } else {
+                        slotDefs = slotDefs.filter(s => s.sid === 'SA' || s.sid === 'SB');
+                    }
+                }
+
                 // Reset selected slot ONLY when the month has changed
                 const currentMonth = window._lastSlotMonth;
                 if (currentMonth !== month) {
@@ -6629,13 +7098,24 @@
                 window._lastSlotMonth = month;
 
                 if (slotDefs.length === 0) {
+                    if (!isMaint && slotDefsBeforeGate.length > 0) {
+                        const eligibleLabel = empYearsForGate > 5 ? 'Slot C / Slot D' : 'Slot A / Slot B';
+                        const ineligibleLabel = empYearsForGate > 5 ? 'Slot A / Slot B' : 'Slot C / Slot D';
+                        container.innerHTML =
+                            '<div class="p-4 bg-orange-50 border border-orange-200 rounded-lg text-center">'
+                            + '<p class="text-orange-700 font-semibold">No ' + eligibleLabel + ' configured for ' + month + '</p>'
+                            + '<p class="text-xs text-orange-600 mt-1">Based on ' + empYearsForGate.toFixed(1) + ' years of service, you can only bid into ' + eligibleLabel + '. '
+                            + 'The planner has configured ' + ineligibleLabel + ' for this month, but not ' + eligibleLabel + '.</p>'
+                            + '</div>';
+                        return;
+                    }
                     const diagDept = deptCandidates.join(' / ') || '(no department on record)';
                     const monthKeys = Object.keys(caps).filter(k => k.includes('-' + month + '-') && k.endsWith('-start'));
                     const diagKeys = monthKeys.length > 0
-                        ? [...new Set(monthKeys.map(k => k.replace('-' + month + '-SA-start','').replace('-' + month + '-SB-start','').replace('-' + month + '-SC-start','').replace(/^cal-maint-/,'').replace(/^cal-/,'')))].join(', ')
+                        ? [...new Set(monthKeys.map(k => k.replace('-' + month + '-SA-start','').replace('-' + month + '-SB-start','').replace('-' + month + '-SC-start','').replace('-' + month + '-SD-start','').replace(/^cal-maint-/,'').replace(/^cal-/,'')))].join(', ')
                         : 'none';
-                    const allStartKeys = Object.keys(caps).filter(k => /-(SA|SB|SC)-start$/.test(k));
-                    const allConfigDepts = [...new Set(allStartKeys.map(k => k.replace(/^cal-maint-/,'').replace(/^cal-/,'').replace(/-(SA|SB|SC)-start$/,'').replace(/-(January|February|March|April|May|June|July|August|September|October|November|December)-/,' -> ')))].slice(0,20);
+                    const allStartKeys = Object.keys(caps).filter(k => /-(SA|SB|SC|SD)-start$/.test(k));
+                    const allConfigDepts = [...new Set(allStartKeys.map(k => k.replace(/^cal-maint-/,'').replace(/^cal-/,'').replace(/-(SA|SB|SC|SD)-start$/,'').replace(/-(January|February|March|April|May|June|July|August|September|October|November|December)-/,' -> ')))].slice(0,20);
                     const allDeptsHtml = allConfigDepts.length > 0 ? allConfigDepts.join('<br>') : 'No slots configured anywhere yet';
                     container.innerHTML =
                         '<div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">'
@@ -6816,6 +7296,22 @@
                 return (start1 <= end2 && end1 >= start2);
             },
 
+            // Centralized deadline check — used to gate bid submission everywhere
+            isBiddingClosed() {
+                if (!this.state.biddingDeadline) return false;
+                return (new Date(this.state.biddingDeadline) - new Date()) <= 0;
+            },
+
+            // Sets the bidding deadline, ensuring a date-only pick (defaults to 00:00)
+            // closes at the END of that day rather than the very start of it.
+            setBiddingDeadline(val) {
+                if (val && /T00:00(:00)?$/.test(val)) {
+                    val = val.slice(0, 10) + 'T23:59';
+                }
+                this.state.biddingDeadline = val;
+                this.saveConfigToSupabase();
+            },
+
             submitBid() {
                 if (!this.state.verifiedEmployee) {
                     alert('Please login first');
@@ -6824,6 +7320,11 @@
 
                 if (this.state.isProcessed) {
                     alert('Bidding has been processed. No more bids allowed.');
+                    return;
+                }
+
+                if (this.isBiddingClosed()) {
+                    alert('⛔ The bidding deadline has passed. You can no longer submit bids.');
                     return;
                 }
 
@@ -6845,8 +7346,27 @@
                     return;
                 }
 
-                // Use the configured slot's label as the slotType key (SA/SB/SC)
-                const slotTypeKey = slotDef.sid; // 'SA', 'SB', 'SC'
+                // Use the configured slot's label as the slotType key (SA/SB/SC/SD)
+                const slotTypeKey = slotDef.sid; // 'SA', 'SB', 'SC', 'SD'
+
+                // Seniority gate (OPS staff only): ≤5 years → Slot A/B only, >5 years → Slot C/D only.
+                // Maintenance staff are routed through a different bidding flow and are unaffected.
+                if (this.state.userType !== 'maintenancestaff') {
+                    const empForGuard = this.state.employees.find(e => e.id === this.state.verifiedEmployee?.id) || this.state.verifiedEmployee;
+                    const guardYears = empForGuard?.seniorityDate
+                        ? (new Date() - new Date(empForGuard.seniorityDate)) / (1000 * 60 * 60 * 24 * 365.25)
+                        : 0;
+                    const isSeniorSlot = (slotTypeKey === 'SC' || slotTypeKey === 'SD');
+                    const isJuniorSlot = (slotTypeKey === 'SA' || slotTypeKey === 'SB');
+                    if (isSeniorSlot && guardYears <= 5) {
+                        alert('⛔ Slot C and Slot D are only available to staff with more than 5 years of service.');
+                        return;
+                    }
+                    if (isJuniorSlot && guardYears > 5) {
+                        alert('⛔ Slot A and Slot B are only available to staff with 5 years of service or less. Staff with more than 5 years should bid into Slot C or Slot D.');
+                        return;
+                    }
+                }
 
                 const existingBid = this.state.bids.find(
                     bid => bid.employeeId === this.state.verifiedEmployee.id && bid.startDate === startDate && bid.endDate === endDate
@@ -6869,10 +7389,6 @@
                 
                 const getEmployeeEntitlement = (employee) => {
                     if (!employee || !employee.seniorityDate) return 30;
-                    // Corporate Staff and Golden Command are capped at 30 days regardless of seniority
-                    const csIds = (this.state.corporateStaffUsers || []).map(u => u.id);
-                    const gcIds = (this.state.goldenCommandUsers  || []).map(u => u.id);
-                    if (csIds.includes(employee.id) || gcIds.includes(employee.id)) return 30;
                     const yearsOfService = calculateYearsOfService(employee.seniorityDate);
                     return yearsOfService >= 5 ? 35 : 30;
                 };
@@ -6995,41 +7511,45 @@
                 }
             },
 
-            removeBid(employeeId, slotType, startDate) {
+            async removeBid(employeeId, slotType, startDate) {
                 if (this.state.isProcessed) {
                     alert('Cannot remove bids after processing');
                     return;
                 }
-                
-                if (confirm('Are you sure you want to remove this bid?')) {
-                    this.state.bids = this.state.bids.filter(bid => 
-                        !(bid.employeeId === employeeId && 
-                          bid.slotType === slotType && 
-                          bid.startDate === startDate)
-                    );
-                    this.saveState();
+                if (!confirm('Are you sure you want to remove this bid?')) return;
+
+                // 1. Optimistically remove from local state and persist immediately
+                this.state.bids = this.state.bids.filter(bid =>
+                    !(bid.employeeId === employeeId &&
+                      bid.slotType === slotType &&
+                      bid.startDate === startDate)
+                );
+                this.saveState();
+                this.renderEmployeeBiddingView();
+
+                // 2. Delete from Supabase and AWAIT the result so a failure is surfaced
+                if (!this.supabase) {
                     this.writeAuditLog('BID_REMOVED', { employee_id: employeeId, slot_type: slotType, start_date: startDate });
-
-                    // Delete from Supabase immediately — route by user type
-                    if (this.supabase) {
-                        const table = this.state.userType === 'maintenancestaff'
-                            ? 'maint_leave_requests'
-                            : 'leave_requests';
-                        this.supabase
-                            .from(table)
-                            .delete()
-                            .eq('tenant_id', this._tid())
-                            .eq('employee_id', employeeId)
-                            .eq('slot_type', slotType)
-                            .eq('start_date', startDate)
-                            .then(({ error }) => {
-                                if (error) console.warn(`⚠️ Could not delete bid from ${table}:`, error.message);
-                                else console.log(`✅ Bid deleted from ${table}`);
-                            });
-                    }
-
-                    this.renderEmployeeBiddingView();
+                    return;
                 }
+                const table = this.state.userType === 'maintenancestaff'
+                    ? 'maint_leave_requests'
+                    : 'leave_requests';
+                const { error } = await this.supabase
+                    .from(table)
+                    .delete()
+                    .eq('tenant_id', this._tid())
+                    .eq('employee_id', employeeId)
+                    .eq('slot_type', slotType)
+                    .eq('start_date', startDate);
+
+                if (error) {
+                    console.error(`❌ Delete failed [${table}]:`, error.message);
+                    alert('Could not delete from server — please retry.');
+                    return;
+                }
+                console.log(`✅ Bid deleted from ${table}`);
+                this.writeAuditLog('BID_REMOVED', { employee_id: employeeId, slot_type: slotType, start_date: startDate });
             },
                
             async loadAvailableSlots() {
@@ -7062,7 +7582,7 @@
                         const deptKey = withoutSlot.slice(0, monthDash);
 
                         if (!months.includes(month)) return;
-                        const slotLetter = slotId === 'SA' ? 'A' : slotId === 'SB' ? 'B' : slotId === 'SC' ? 'C' : null;
+                        const slotLetter = slotId === 'SA' ? 'A' : slotId === 'SB' ? 'B' : slotId === 'SC' ? 'C' : slotId === 'SD' ? 'D' : null;
                         if (!slotLetter) return;
 
                         const mapKey = `${deptKey}||${month}||${slotLetter}`;
@@ -7099,14 +7619,14 @@
                     this.state.bids.forEach(bid => {
                         const bDept = bid.department || '';
                         const bMonth = bid.startDate ? months[new Date(bid.startDate).getMonth()] : '';
-                        const bSlotLetter = bid.slotType === 'slotA' ? 'A' : bid.slotType === 'slotB' ? 'B' : bid.slotType === 'slotC' ? 'C' : '';
+                        const bSlotLetter = bid.slotType === 'slotA' ? 'A' : bid.slotType === 'slotB' ? 'B' : bid.slotType === 'slotC' ? 'C' : bid.slotType === 'slotD' ? 'D' : '';
                         if (bDept && bMonth && bSlotLetter) {
                             const k = `${bDept}||${bMonth}||${bSlotLetter}`;
                             bidCounts[k] = (bidCounts[k] || 0) + 1;
                         }
                     });
 
-                    const colorMap = { A: { bg: 'bg-green-50', border: 'border-green-300', badge: 'bg-green-100 text-green-800', label: 'Slot A' }, B: { bg: 'bg-blue-50', border: 'border-blue-300', badge: 'bg-blue-100 text-blue-800', label: 'Slot B' }, C: { bg: 'bg-purple-50', border: 'border-purple-300', badge: 'bg-purple-100 text-purple-800', label: 'Slot C' } };
+                    const colorMap = { A: { bg: 'bg-green-50', border: 'border-green-300', badge: 'bg-green-100 text-green-800', label: 'Slot A' }, B: { bg: 'bg-blue-50', border: 'border-blue-300', badge: 'bg-blue-100 text-blue-800', label: 'Slot B' }, C: { bg: 'bg-purple-50', border: 'border-purple-300', badge: 'bg-purple-100 text-purple-800', label: 'Slot C' }, D: { bg: 'bg-orange-50', border: 'border-orange-300', badge: 'bg-orange-100 text-orange-800', label: 'Slot D' } };
 
                     let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
                     allSlots.forEach(slot => {
@@ -7497,10 +8017,10 @@
                         const gcUser = (this.state.goldenCommandUsers || []).find(u => u.id === userId);
                         if (gcUser) gcUser.password = newPass;
                     } else if (userType === 'corporatestaff') {
-                        // Update in Supabase corporate_staff_users table
+                        // Update in Supabase corporate_staff_employees table
                         if (this.supabase) {
                             const { error } = await this.supabase
-                                .from('corporate_staff_users')
+                                .from('corporate_staff_employees')
                                 .update({ password: newPass })
                                 .eq('id', userId);
                             if (error) throw error;
@@ -9229,20 +9749,12 @@
                         last_updated: new Date().toISOString()
                     };
                     // Try UPDATE first (row already exists for this tenant)
-                    const { error: updateErr, data: updateData } = await this.supabase
+                    const { error } = await this.supabase
                         .from('system_config')
-                        .update(ejsPayload)
-                        .eq('tenant_id', this._tid())
-                        .select('id')
-                        .single();
-                    let error = null;
-                    if (updateErr || !updateData) {
-                        // Row doesn't exist yet — INSERT
-                        const { error: insertErr } = await this.supabase
-                            .from('system_config')
-                            .insert({ ...ejsPayload, tenant_id: this._tid() });
-                        error = insertErr;
-                    }
+                        .upsert(
+                            { id: 1, tenant_id: this._tid(), ...ejsPayload },
+                            { onConflict: 'id' }
+                        );
                     if (error) {
                         console.error('❌ Could not save config to Supabase:', error.message);
                         this.updateSystemStatus('⚠️ Save failed — data saved locally only');
@@ -10011,7 +10523,32 @@
                     '.lc-empty{padding:55px;text-align:center;color:rgba(200,225,255,.35);font-family:"Barlow Condensed",sans-serif;font-size:1.05rem;letter-spacing:.05em;}',
                     '.lc-no-bids{padding:40px;text-align:center;background:#f0f7ff;border-radius:10px;margin:20px;color:rgba(30,60,100,.4);}',
                     '.lc-no-bids .lc-nb-icon{font-size:2.5rem;margin-bottom:10px;}',
-                    '.lc-no-bids p{font-size:.9rem;}'
+                    '.lc-no-bids p{font-size:.9rem;}',
+                    '.lc-sf-btn{font-family:"Barlow Condensed",sans-serif;font-size:.78rem;font-weight:700;letter-spacing:.08em;padding:6px 13px;border-radius:8px;border:1px solid rgba(255,210,80,.7);background:rgba(255,193,7,.2);color:#ffe082;cursor:pointer;transition:all .15s;}',
+                    '.lc-sf-btn:hover{background:rgba(255,193,7,.35);border-color:#ffe082;color:#fff;}',
+                    '#lcSfModal{display:none;position:fixed;inset:0;z-index:10000;background:rgba(10,20,40,.72);align-items:center;justify-content:center;}',
+                    '#lcSfModal.open{display:flex;}',
+                    '#lcSfBox{background:#0d1b2e;border:1px solid rgba(100,180,255,.25);border-radius:14px;padding:26px 28px;width:560px;max-width:95vw;box-shadow:0 24px 60px rgba(0,0,0,.7);color:#d8eaf7;font-family:Barlow,sans-serif;}',
+                    '#lcSfBox h3{font-family:"Barlow Condensed",sans-serif;font-size:1.15rem;font-weight:800;letter-spacing:.08em;color:#4eb0ff;margin-bottom:4px;}',
+                    '#lcSfBox p.lc-sf-sub{font-size:.73rem;color:rgba(200,225,255,.45);margin-bottom:14px;line-height:1.5;}',
+                    '#lcSfBox label{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:rgba(200,225,255,.5);display:block;margin-bottom:5px;}',
+                    '#lcSfBox textarea{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(100,180,255,.22);border-radius:8px;color:#d8eaf7;font-size:.76rem;font-family:monospace;padding:10px;resize:vertical;min-height:130px;outline:none;}',
+                    '#lcSfBox textarea:focus{border-color:rgba(100,180,255,.5);}',
+                    '.lc-sf-row{display:flex;gap:10px;margin-top:14px;align-items:center;flex-wrap:wrap;}',
+                    '.lc-sf-run{font-family:"Barlow Condensed",sans-serif;font-size:.82rem;font-weight:700;letter-spacing:.08em;padding:8px 18px;border-radius:8px;background:#1565c0;border:1px solid #4eb0ff;color:#fff;cursor:pointer;transition:all .15s;}',
+                    '.lc-sf-run:hover{background:#1976d2;}',
+                    '.lc-sf-run:disabled{opacity:.45;cursor:not-allowed;}',
+                    '.lc-sf-cancel{font-family:"Barlow Condensed",sans-serif;font-size:.78rem;font-weight:600;padding:8px 14px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:rgba(200,225,255,.6);cursor:pointer;}',
+                    '.lc-sf-cancel:hover{background:rgba(255,255,255,.12);}',
+                    '#lcSfStatus{flex:1;font-size:.73rem;color:rgba(200,225,255,.5);min-width:160px;}',
+                    '#lcSfStatus.ok{color:#2ecc9a;}',
+                    '#lcSfStatus.err{color:#ff6b6b;}',
+                    '#lcSfStatus.warn{color:#ffc36b;}',
+                    '.lc-sf-preview{margin-top:12px;background:rgba(255,255,255,.04);border:1px solid rgba(100,180,255,.12);border-radius:8px;padding:10px;max-height:180px;overflow-y:auto;font-size:.7rem;font-family:monospace;color:rgba(200,225,255,.6);display:none;}',
+                    '.lc-sf-preview.show{display:block;}',
+                    '.lc-sf-row2{display:flex;gap:8px;margin-top:10px;align-items:center;}',
+                    '.lc-sf-filebtn{font-size:.72rem;padding:6px 12px;border-radius:7px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);color:rgba(200,225,255,.7);cursor:pointer;font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.06em;}',
+                    '.lc-sf-filebtn:hover{background:rgba(255,255,255,.14);}'
                 ].join('\n');
 
                 var lcHTML = '<div id="lcDash">'
@@ -10020,7 +10557,7 @@
                     +   '<div style="display:flex;align-items:center;gap:10px;">'
                     +     '<div class="lc-logo">FLOW <span>METRO</span></div>'
                     +     '<div class="lc-badge-yr">GC &amp; CS Leave Tracker 2026</div>'
-                    +     '<span class="lc-live-badge">&#9679; LIVE</span>'
+                    +     '<span class="lc-live-badge" id="lcLiveBadge">&#9679; LIVE</span>'
                     +   '</div>'
                     +   '<div class="lc-tabs">'
                     +     '<button class="lc-tab-btn active" onclick="lcSetDept(\'all\')" id="lct-all">All</button>'
@@ -10036,6 +10573,7 @@
                     +     '</div>'
                     +     '<div class="lc-search"><input type="text" id="lcSearch" placeholder="Search staff..." oninput="lcFilterStaff(this.value)"></div>'
                     +     '<button class="lc-refresh-btn" onclick="lcRefresh()">&#8635; Refresh</button>'
+                    +     '<button class="lc-sf-btn" onclick="lcOpenSfSync()">&#8645; SF Sync</button>'
                     +     '<button class="lc-export-btn" onclick="lcExportCSV()">&#11015; CSV</button>'
                     +   '</div>'
                     + '</div>'
@@ -10048,6 +10586,25 @@
                     +   '<div style="margin-left:auto;font-size:.62rem;">Connected to Admin &#8250; Bid Details &#8250; GC &amp; Corporate Staff</div>'
                     + '</div>'
                     + '<div id="lcTooltip"></div>'
+                    + '<div id="lcSfModal">'
+                    +   '<div id="lcSfBox">'
+                    +     '<h3>&#8645; SAP SuccessFactors &mdash; Leave Sync</h3>'
+                    +     '<p class="lc-sf-sub">Paste the exported SF leave data (CSV or tab-separated). <strong style="color:#ffe082;">Only employees listed in this dashboard will be imported.</strong> Any request from an employee not in the tracker is silently excluded.</p>'
+                    +     '<div class="lc-sf-row2">'
+                    +       '<label style="margin:0;cursor:pointer;" class="lc-sf-filebtn" for="lcSfFileInput">&#128196; Upload CSV / TSV</label>'
+                    +       '<input type="file" id="lcSfFileInput" accept=".csv,.tsv,.txt" style="display:none;" onchange="lcSfLoadFile(this)">'
+                    +       '<span id="lcSfFileName" style="font-size:.7rem;color:rgba(200,225,255,.4);"></span>'
+                    +     '</div>'
+                    +     '<label style="margin-top:10px;">Or paste raw data (CSV / tab-separated)</label>'
+                    +     '<textarea id="lcSfRaw" placeholder="employee_id, employee_name, leave_type, start_date, end_date, days&#10;1000888, Ahmed Al-Rashidi, Annual Leave, 2026-03-01, 2026-03-10, 10&#10;&#10;Header row is auto-detected and skipped. Dates must be YYYY-MM-DD."></textarea>'
+                    +     '<div class="lc-sf-preview" id="lcSfPreview"></div>'
+                    +     '<div class="lc-sf-row">'
+                    +       '<button class="lc-sf-run" id="lcSfRunBtn" onclick="lcRunSfSync()">&#9654; Run Sync</button>'
+                    +       '<button class="lc-sf-cancel" onclick="lcCloseSfSync()">Cancel</button>'
+                    +       '<div id="lcSfStatus"></div>'
+                    +     '</div>'
+                    +   '</div>'
+                    + '</div>'
                     + '</div>';
 
                 content.innerHTML = lcHTML;
@@ -10090,10 +10647,11 @@
                     var gccsIds = gcIds.concat(csIds);
 
                     // Only include the specific staff from the approved Excel list
-                    var ALLOWED_IDS = ['1000008','1000027','1000124','1001118','1002997','1003591','1003592','1003752','1006024','1006939','1007066','10015','10020','1000555','1000136','1000225','1000352','1000759','1000043','1000830','1000284','1000330','1000231','1000238','1005385','1007071','1006467','Benjamin Whelan','Rachid Hamidi','Omar Pervez','VALERIO COLETTA'];
+                    var ALLOWED_IDS = ['1000888','1000008','1000027','1000124','1001118','1002997','1003591','1003592','1003752','1006024','1006939','1007066','10015','10020','1000555','1000136','1000225','1000352','1000759','1000043','1000830','1000284','1000330','1000231','1000238','1005385','1007071','1006467','1007071'];
 
                     // Canonical job titles from approved staff list
                     var STAFF_TITLES = {
+                        '1000888': 'Project Director',
                         '1000008': 'Senior Executive Finance Director',
                         '1000027': 'Senior Executive Human Resource Director',
                         '1000124': 'Senior Executive Director Stakeholder & Communication',
@@ -10376,6 +10934,344 @@
                 };
 
                 lcRender();
+
+                // ── Start realtime subscription for the Leave Tracker ─────────
+                // Expose lcRender on window so the realtime callback can call it
+                window.lcRender = lcRender;
+                self.startLcRealtime();
+
+                // Fallback poll every 30s in case realtime events stop arriving
+                if (self._lcFallbackTimer) clearInterval(self._lcFallbackTimer);
+                self._lcFallbackTimer = setInterval(function() {
+                    if (self.state.activeView === 'leaveDashboard') {
+                        lcRender();
+                        self._setLcStatus('live');
+                    }
+                }, 30000);
+                // Build the whitelist once: only IDs that appear in BOTH the
+                // ALLOWED_IDS hardcoded list AND the live GC/CS user roster.
+                function lcSfWhitelist() {
+                    var gcIds = (self.state.goldenCommandUsers  || []).map(function(u){ return u.id; });
+                    var csIds = (self.state.corporateStaffUsers || []).map(function(u){ return u.id; });
+                    var gccsIds = gcIds.concat(csIds);
+                    var ALLOWED_IDS = ['1000888','1000008','1000027','1000124','1001118','1002997','1003591','1003592','1003752','1006024','1006939','1007066','10015','10020','1000555','1000136','1000225','1000352','1000759','1000043','1000830','1000284','1000330','1000231','1000238','1005385','1007071','1006467','1007071'];
+                    var set = new Set();
+                    gccsIds.forEach(function(id) { if (ALLOWED_IDS.indexOf(id) > -1) set.add(id); });
+                    return set;
+                }
+
+                // Detect delimiter: tab wins if more tabs than commas in first line
+                function lcSfDetectDelim(text) {
+                    var first = text.split('\n')[0] || '';
+                    return (first.split('\t').length > first.split(',').length) ? '\t' : ',';
+                }
+
+                // Parse raw text → array of row objects
+                // Expected columns (flexible order, detected by header):
+                //   employee_id | employee_name | leave_type | start_date | end_date | days
+                // Falls back to positional (col 0=id, 1=name, 2=type, 3=start, 4=end, 5=days)
+                function lcSfParseRows(text) {
+                    var delim = lcSfDetectDelim(text);
+                    var lines = text.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+                    if (!lines.length) return [];
+
+                    var COL_ALIASES = {
+                        employee_id:     ['employee_id','employeeid','emp_id','empid','id','userid','user_id','personnel_number','personnel id','employee number'],
+                        employee_name:   ['employee_name','employeename','name','full_name','fullname','employee name'],
+                        leave_type:      ['leave_type','leavetype','type','leave type','absence type','absencetype','time type','timetype'],
+                        start_date:      ['start_date','startdate','from','from_date','start date','leave start','begin_date'],
+                        end_date:        ['end_date','enddate','to','to_date','end date','leave end','return_date'],
+                        days:            ['days','no_of_days','num_days','duration','calendar days','working days','days_requested','quantity'],
+                        approval_status: ['approval_status','approvalstatus','status','wf_status','wfstatus','workflow status','leave status','request status','approvalStatus']
+                    };
+
+                    var colIdx = { employee_id:-1, employee_name:-1, leave_type:-1, start_date:-1, end_date:-1, days:-1, approval_status:-1 };
+                    var dataStart = 0;
+
+                    // Try first line as header
+                    var firstCols = lines[0].split(delim).map(function(c){ return c.replace(/^["'\s]+|["'\s]+$/g,'').toLowerCase(); });
+                    var headerDetected = false;
+                    Object.keys(COL_ALIASES).forEach(function(key) {
+                        firstCols.forEach(function(col, i) {
+                            if (COL_ALIASES[key].indexOf(col) > -1 && colIdx[key] === -1) {
+                                colIdx[key] = i;
+                                headerDetected = true;
+                            }
+                        });
+                    });
+                    if (headerDetected) { dataStart = 1; }
+                    // Positional fallback (approval_status has no positional default — only header-detected)
+                    if (colIdx.employee_id   === -1) colIdx.employee_id   = 0;
+                    if (colIdx.employee_name === -1) colIdx.employee_name = 1;
+                    if (colIdx.leave_type    === -1) colIdx.leave_type    = 2;
+                    if (colIdx.start_date    === -1) colIdx.start_date    = 3;
+                    if (colIdx.end_date      === -1) colIdx.end_date      = 4;
+                    if (colIdx.days          === -1) colIdx.days          = 5;
+                    // If no status column found, we treat all rows as approved (manual export assumed pre-filtered)
+                    var hasStatusCol = colIdx.approval_status !== -1;
+
+                    // SF uses various strings for approved status — normalise them all
+                    var APPROVED_VALUES = ['approved','approve','appr','completed','active','taken','confirmed','1','true'];
+
+                    function clean(val) { return (val || '').replace(/^["'\s]+|["'\s]+$/g,'').trim(); }
+                    function parseDate(val) {
+                        var v = clean(val);
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+                        var m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                        if (m) return m[3] + '-' + m[2].padStart(2,'0') + '-' + m[1].padStart(2,'0');
+                        var d = new Date(v);
+                        if (!isNaN(d.getTime())) return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+                        return null;
+                    }
+
+                    var rows = [];
+                    var skippedStatus = 0;
+                    for (var i = dataStart; i < lines.length; i++) {
+                        var parts = lines[i].split(delim);
+                        var id    = clean(parts[colIdx.employee_id]);
+                        if (!id) continue;
+
+                        // ── Approval status gate ──────────────────────────────
+                        if (hasStatusCol) {
+                            var statusRaw = clean(parts[colIdx.approval_status]).toLowerCase();
+                            if (APPROVED_VALUES.indexOf(statusRaw) === -1) {
+                                skippedStatus++;
+                                continue;   // not approved — skip silently
+                            }
+                        }
+
+                        var name  = clean(parts[colIdx.employee_name]);
+                        var ltype = clean(parts[colIdx.leave_type]) || 'Annual Leave';
+                        var start = parseDate(parts[colIdx.start_date]);
+                        var end   = parseDate(parts[colIdx.end_date]);
+                        var days  = parseInt(clean(parts[colIdx.days]), 10);
+                        if (!start) continue;
+                        if (!end) end = start;
+                        if (isNaN(days) || days < 1) {
+                            var ms = new Date(end+'T00:00:00') - new Date(start+'T00:00:00');
+                            days = Math.max(1, Math.round(ms / 86400000) + 1);
+                        }
+                        rows.push({ id: id, name: name, leaveType: ltype, startDate: start, endDate: end, days: days });
+                    }
+                    // Attach skipped count so the preview/status message can report it
+                    rows._skippedStatus = skippedStatus;
+                    rows._hasStatusCol  = hasStatusCol;
+                    return rows;
+                }
+
+                window.lcOpenSfSync = function() {
+                    var modal = document.getElementById('lcSfModal');
+                    if (modal) { modal.classList.add('open'); }
+                    var ta = document.getElementById('lcSfRaw');
+                    if (ta) ta.value = '';
+                    var st = document.getElementById('lcSfStatus');
+                    if (st) { st.textContent = ''; st.className = ''; }
+                    var prev = document.getElementById('lcSfPreview');
+                    if (prev) { prev.textContent = ''; prev.classList.remove('show'); }
+                    var fn = document.getElementById('lcSfFileName');
+                    if (fn) fn.textContent = '';
+                };
+                window.lcCloseSfSync = function() {
+                    var modal = document.getElementById('lcSfModal');
+                    if (modal) modal.classList.remove('open');
+                };
+                // Close on backdrop click
+                var sfModal = document.getElementById('lcSfModal');
+                if (sfModal) sfModal.addEventListener('click', function(e) { if (e.target === sfModal) lcCloseSfSync(); });
+
+                window.lcSfLoadFile = function(input) {
+                    var file = input.files && input.files[0];
+                    if (!file) return;
+                    var fn = document.getElementById('lcSfFileName');
+                    if (fn) fn.textContent = file.name;
+                    var reader = new FileReader();
+                    reader.onload = function(e) {
+                        var ta = document.getElementById('lcSfRaw');
+                        if (ta) ta.value = e.target.result;
+                        var rows = lcSfParseRows(e.target.result);
+                        var whitelist = lcSfWhitelist();
+                        var matched = rows.filter(function(r){ return whitelist.has(r.id); });
+                        var prev = document.getElementById('lcSfPreview');
+                        if (prev) {
+                            var msg = 'Detected ' + (rows.length + (rows._skippedStatus||0)) + ' rows — ';
+                            if (rows._hasStatusCol) msg += (rows._skippedStatus||0) + ' non-approved skipped, ';
+                            msg += rows.length + ' approved, ' + matched.length + ' match dashboard employees.';
+                            if (!rows._hasStatusCol) msg += ' ⚠ No status column detected — export should be pre-filtered to Approved only.';
+                            prev.textContent = msg;
+                            prev.classList.add('show');
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+
+                window.lcRunSfSync = async function() {
+                    var raw = (document.getElementById('lcSfRaw') || {}).value || '';
+                    var st  = document.getElementById('lcSfStatus');
+                    var btn = document.getElementById('lcSfRunBtn');
+
+                    function setStatus(msg, cls) {
+                        if (st) { st.textContent = msg; st.className = cls || ''; }
+                    }
+
+                    if (!raw.trim()) { setStatus('⚠ No data to import.', 'warn'); return; }
+
+                    var rows = lcSfParseRows(raw);
+                    if (!rows.length) { setStatus('⚠ Could not parse any rows. Check format.', 'err'); return; }
+
+                    var whitelist = lcSfWhitelist();
+
+                    // Split: matched (allowed) vs excluded
+                    var matched  = rows.filter(function(r){ return whitelist.has(r.id); });
+                    var excluded = rows.filter(function(r){ return !whitelist.has(r.id); });
+
+                    if (!matched.length) {
+                        setStatus('⚠ None of the ' + rows.length + ' rows belong to dashboard employees. Sync cancelled.', 'warn');
+                        return;
+                    }
+
+                    if (btn) btn.disabled = true;
+                    setStatus('⏳ Syncing ' + matched.length + ' record(s)…');
+
+                    var tid = self._tid ? self._tid() : (self.state && self.state.tenantId) || 'default';
+                    var gcIds = (self.state.goldenCommandUsers  || []).map(function(u){ return u.id; });
+                    var STAFF_TITLES = {
+                        '1000888':'Project Director','1000008':'Senior Executive Finance Director',
+                        '1000027':'Senior Executive Human Resource Director','1000124':'Senior Executive Director Stakeholder & Communication',
+                        '1001118':'Head of Major Services Management','1002997':'Contract Director',
+                        '1003591':'ICT Manager','1003592':'Head of Cyber Security','1003752':'INM Director',
+                        '1006024':'Security Director','1006939':'Rail Safety Manager','1007066':'Operations Director',
+                        '10015':'TSM L456 Director','10020':'TSM L3 Director','1000555':'Executive Assistant Project Director',
+                        '1000136':'CMMS Manager','1000225':'Performance Manager','1000352':'Planning and Reporting Specialist',
+                        '1000759':'KPI & Reporting Specialist','1000043':'Quality And Audit Manager','1000830':'Risk Manager',
+                        '1000284':'Rail Safety Officer','1000330':'Executive Assistant','1000231':'Line Standards Manager',
+                        '1000238':'Line Standards Manager','1005385':'Operation Manager L-46','1007071':'Operation Manager L-5','1006467':'Operation Manager L-3'
+                    };
+
+                    var inserted = 0, updated = 0, errors = 0, errDetails = [];
+
+                    for (var i = 0; i < matched.length; i++) {
+                        var r = matched[i];
+                        var isGC = gcIds.indexOf(r.id) > -1;
+                        var dept = isGC ? 'Golden Command' : 'Corporate Staff';
+                        var position = STAFF_TITLES[r.id] || dept;
+                        var slotType = (r.days || 0) > 15 ? 'slotC' : 'slotA';
+
+                        // Only columns that exist in leave_requests (matches the real schema)
+                        var record = {
+                            tenant_id:      tid,
+                            employee_id:    r.id,
+                            employee_name:  r.name || r.id,
+                            department:     dept,
+                            slot_type:      slotType,
+                            start_date:     r.startDate,
+                            end_date:       r.endDate,
+                            days_requested: r.days,
+                            status:         'approved',
+                            created_at:     new Date().toISOString()
+                        };
+
+                        if (self.supabase) {
+                            try {
+                                // Step 1 — check if a record already exists for this employee+slot+start
+                                var { data: existing, error: selErr } = await self.supabase
+                                    .from('leave_requests')
+                                    .select('id')
+                                    .eq('tenant_id',    tid)
+                                    .eq('employee_id',  r.id)
+                                    .eq('slot_type',    slotType)
+                                    .eq('start_date',   r.startDate)
+                                    .maybeSingle();
+
+                                var opErr = null;
+                                if (existing && existing.id) {
+                                    // UPDATE existing row by id
+                                    var { error: updErr } = await self.supabase
+                                        .from('leave_requests')
+                                        .update({
+                                            end_date:       record.end_date,
+                                            days_requested: record.days_requested,
+                                            employee_name:  record.employee_name,
+                                            status:         'approved'
+                                        })
+                                        .eq('id', existing.id);
+                                    opErr = updErr;
+                                    if (!updErr) updated++;
+                                } else {
+                                    // INSERT new row
+                                    var { error: insErr } = await self.supabase
+                                        .from('leave_requests')
+                                        .insert(record);
+                                    opErr = insErr;
+                                    if (!insErr) inserted++;
+                                }
+
+                                if (opErr) {
+                                    errors++;
+                                    errDetails.push(r.id + ': ' + (opErr.message || opErr.code || JSON.stringify(opErr)));
+                                    console.warn('SF sync error for', r.id, opErr);
+                                }
+                            } catch(ex) {
+                                errors++;
+                                errDetails.push(r.id + ': ' + ex.message);
+                                console.warn('SF sync exception', ex);
+                            }
+                        } else {
+                            // Offline — inject directly into state.bids
+                            var bid = {
+                                employeeId:   r.id,
+                                employeeName: r.name || r.id,
+                                department:   dept,
+                                position:     position,
+                                slotType:     slotType,
+                                startDate:    r.startDate,
+                                endDate:      r.endDate,
+                                days:         r.days,
+                                timestamp:    new Date().toISOString(),
+                                _sourceTable: 'leave_requests',
+                                _importSource:'SAP_SF'
+                            };
+                            var existIdx = (self.state.bids || []).findIndex(function(b){
+                                return b.employeeId === r.id && b.startDate === r.startDate && b.slotType === slotType;
+                            });
+                            if (existIdx > -1) { self.state.bids[existIdx] = bid; updated++; }
+                            else { self.state.bids.push(bid); inserted++; }
+                        }
+                    }
+
+                    // Reload bids from Supabase so state is fresh
+                    if (self.supabase) {
+                        try {
+                            var allBids = [], pg2 = 0, more2 = true, bs2 = 1000;
+                            while (more2) {
+                                var { data: batch2, error: err2 } = await self.supabase
+                                    .from('leave_requests').select('*')
+                                    .eq('tenant_id', tid).range(pg2, pg2 + bs2 - 1);
+                                if (err2 || !batch2 || !batch2.length) { more2 = false; }
+                                else { allBids = allBids.concat(batch2); more2 = batch2.length === bs2; pg2 += bs2; }
+                            }
+                            self.state.bids = self.state.bids.filter(function(b){ return b._sourceTable === 'maint_leave_requests'; });
+                            allBids.forEach(function(row) { self.state.bids.push(self._mapRemoteBid(row, 'leave_requests')); });
+                        } catch(ex2) { console.warn('Post-sync reload failed', ex2); }
+                    }
+
+                    // Refresh the tracker
+                    lcRender();
+                    if (btn) btn.disabled = false;
+
+                    var msg = '✅ Sync complete — ' + (inserted + updated) + ' record(s) applied';
+                    if (rows._skippedStatus) msg += ', ' + rows._skippedStatus + ' non-approved skipped';
+                    if (excluded.length) msg += ', ' + excluded.length + ' excluded (not in dashboard)';
+                    if (errors) msg += ' ⚠ ' + errors + ' error(s): ' + errDetails.slice(0,2).join('; ');
+                    setStatus(msg, errors ? (inserted + updated > 0 ? 'warn' : 'err') : 'ok');
+
+                    // Write audit entry
+                    if (self.writeAuditLog) {
+                        self.writeAuditLog('SF_SYNC', { imported: inserted + updated, excluded: excluded.length, errors: errors });
+                    }
+
+                    // Auto-close on full success after 3 s
+                    if (!errors) setTimeout(function(){ lcCloseSfSync(); }, 3000);
+                };
             },
 
             async renderAuditLogView() {
@@ -10407,6 +11303,7 @@
                                     <option value="MANUAL_OVERRIDE">Manual Override</option>
                                     <option value="DATA_UPLOADED">Data Uploaded</option>
                                     <option value="SYSTEM_RESET">System Reset</option>
+                                    <option value="SF_SYNC">SF Sync</option>
                                 </select>
                                 <select id="auditFilterRole" onchange="app.filterAuditLog()" class="px-3 py-2 border rounded-lg text-sm">
                                     <option value="all">All Roles</option>
