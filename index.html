@@ -1150,6 +1150,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <!-- Chart.js (used by HR Corporate Dashboard) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
     
     <script>
         // ==================== SUPABASE CONFIG ====================
@@ -11344,15 +11345,23 @@
                     .sort((a, b) => a.name.localeCompare(b.name));
                 const conflicts = this._hrCorpBidOverlaps();
 
-                // Chart data: slot type distribution (bar) + participation split (pie)
-                const slotLabelMap = { slotA: 'Slot A', slotB: 'Slot B', slotC: 'Slot C', slotD: 'Slot D', SA: 'Slot A', SB: 'Slot B', SC: 'Slot C', SD: 'Slot D' };
-                const slotCounts = {};
-                hrBids.forEach(b => {
-                    const label = slotLabelMap[b.slotType] || b.slotType || 'Other';
-                    slotCounts[label] = (slotCounts[label] || 0) + 1;
+                // Chart data: monthly bidding overview (% submitted vs % not yet bid, cumulative by submission date) + participation split (pie)
+                const chartYear = this.state.biddingYear || new Date().getFullYear();
+                const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                const monthlySubmittedPct = [];
+                const monthlyNotBidPct = [];
+                monthLabels.forEach((label, idx) => {
+                    const monthEnd = new Date(chartYear, idx + 1, 0, 23, 59, 59);
+                    const bidderIdsByMonth = new Set(
+                        hrBids
+                            .filter(b => b.timestamp && new Date(b.timestamp) <= monthEnd)
+                            .map(b => b.employeeId)
+                            .filter(id => hrIds.includes(id))
+                    );
+                    const pct = totalStaff > 0 ? Math.round((bidderIdsByMonth.size / totalStaff) * 100) : 0;
+                    monthlySubmittedPct.push(pct);
+                    monthlyNotBidPct.push(100 - pct);
                 });
-                const slotChartLabels = Object.keys(slotCounts);
-                const slotChartData = slotChartLabels.map(l => slotCounts[l]);
                 const notYetBidCount = totalStaff - participated;
                 const slotLabelMapFull = { slotA: 'Slot A', slotB: 'Slot B', slotC: 'Slot C', slotD: 'Slot D', SA: 'Slot A', SB: 'Slot B', SC: 'Slot C', SD: 'Slot D', gcCustom: '⭐ Custom', csCustom: '🏢 Custom' };
                 const submittedList = hrBids
@@ -11407,14 +11416,14 @@
                         </div>
 
                         <!-- Charts -->
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-                            <div class="bg-white rounded-xl shadow p-5">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+                            <div class="bg-white rounded-xl shadow p-5 lg:col-span-1">
                                 <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">Participation Split</h3>
                                 <div style="height:260px;"><canvas id="hrCorpPieChart"></canvas></div>
                             </div>
-                            <div class="bg-white rounded-xl shadow p-5">
-                                <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">Bids by Slot Type</h3>
-                                <div style="height:260px;">${slotChartLabels.length === 0 ? `<p class="text-center text-gray-400 mt-16">No bids yet to chart.</p>` : `<canvas id="hrCorpBarChart"></canvas>`}</div>
+                            <div class="rounded-xl shadow p-5 lg:col-span-2" style="background:linear-gradient(180deg,#2b3543,#1f2733);">
+                                <h3 class="text-sm font-bold text-gray-200 uppercase tracking-wide mb-3">Bidding Overview — ${chartYear} (% Submitted by Month)</h3>
+                                <div style="height:280px;"><canvas id="hrCorpMonthlyChart"></canvas></div>
                             </div>
                         </div>
 
@@ -11554,7 +11563,7 @@
                 // Render charts (destroy previous instances to avoid canvas reuse errors)
                 if (typeof Chart !== 'undefined') {
                     if (this._hrCorpPieChart) { this._hrCorpPieChart.destroy(); this._hrCorpPieChart = null; }
-                    if (this._hrCorpBarChart) { this._hrCorpBarChart.destroy(); this._hrCorpBarChart = null; }
+                    if (this._hrCorpMonthlyChart) { this._hrCorpMonthlyChart.destroy(); this._hrCorpMonthlyChart = null; }
 
                     const pieCtx = document.getElementById('hrCorpPieChart');
                     if (pieCtx) {
@@ -11576,25 +11585,52 @@
                         });
                     }
 
-                    const barCtx = document.getElementById('hrCorpBarChart');
-                    if (barCtx && slotChartLabels.length > 0) {
-                        this._hrCorpBarChart = new Chart(barCtx, {
+                    const monthlyCtx = document.getElementById('hrCorpMonthlyChart');
+                    if (monthlyCtx) {
+                        const barColors = ['#4f6df5', '#22c55e', '#dc2626', '#a855f7', '#f59e0b', '#14b8a6', '#9ca3af', '#4f6df5', '#22c55e', '#dc2626', '#a855f7', '#f59e0b'];
+                        this._hrCorpMonthlyChart = new Chart(monthlyCtx, {
                             type: 'bar',
                             data: {
-                                labels: slotChartLabels,
-                                datasets: [{
-                                    label: 'Bids',
-                                    data: slotChartData,
-                                    backgroundColor: ['#22c55e', '#3b82f6', '#a855f7', '#f97316', '#94a3b8'],
-                                    borderRadius: 6
-                                }]
+                                labels: monthLabels,
+                                datasets: [
+                                    {
+                                        label: 'Bids Submitted %',
+                                        data: monthlySubmittedPct,
+                                        backgroundColor: barColors,
+                                        borderRadius: 4,
+                                        borderSkipped: false,
+                                        barPercentage: 0.65
+                                    }
+                                ]
                             },
                             options: {
                                 responsive: true,
                                 maintainAspectRatio: false,
-                                plugins: { legend: { display: false } },
-                                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
-                            }
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}%` } },
+                                    datalabels: {
+                                        anchor: 'end',
+                                        align: 'top',
+                                        color: '#ffffff',
+                                        font: { weight: 'bold', size: 12 },
+                                        formatter: v => v + '%'
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        max: 100,
+                                        ticks: { color: '#e5e7eb', callback: v => v + '%' },
+                                        grid: { color: 'rgba(255,255,255,0.08)' }
+                                    },
+                                    x: {
+                                        ticks: { color: '#e5e7eb' },
+                                        grid: { display: false }
+                                    }
+                                }
+                            },
+                            plugins: (typeof ChartDataLabels !== 'undefined') ? [ChartDataLabels] : []
                         });
                     }
                 }
