@@ -2407,7 +2407,7 @@
                                         <div class="flex items-center gap-3 flex-wrap">
                                             <span class="font-semibold text-blue-900">🏢 ${u.name}</span>
                                             <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono border border-blue-300">ID: ${u.id}</span>
-                                            ${u.department && u.department !== 'Corporate Staff' ? `<span class="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-200">${u.department}</span>` : ''}
+                                            ${u.department && !['Corporate Staff', 'Human Resource', 'Human Resources'].includes(u.department) ? `<span class="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-200">${u.department}</span>` : ''}
                                             ${u.position ? `<span class="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-200">${u.position}</span>` : ''}
                                             <span class="text-xs text-gray-400">Password: ${u.password || u.id}</span>
                                         </div>
@@ -11287,9 +11287,11 @@
             // ==================== HR CORPORATE DASHBOARD ====================
             _hrCorpRosterLookup(id) {
                 const u = (this.state.corporateStaffUsers || []).find(u => u.id === id);
+                const GENERIC_DEPTS = ['Corporate Staff', 'Human Resource', 'Human Resources'];
+                const realDept = (u?.department && !GENERIC_DEPTS.includes(u.department)) ? u.department : null;
                 return {
                     name:       u?.name || null,
-                    department: (u?.department && u.department !== 'Corporate Staff') ? u.department : (u?.position ? u.position : null),
+                    department: realDept || (u?.position ? u.position : null),
                     position:   u?.position || ''
                 };
             },
