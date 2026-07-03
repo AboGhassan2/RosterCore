@@ -1172,6 +1172,9 @@
                 biddingYear: 2026,
                 isProcessed: false,
                 isMaintProcessed: false,
+                biddingDeadlineCorp: '',
+                biddingYearCorp: 2026,
+                isProcessedCorp: false,
                 activeView: 'login',
                 selectedEmployeeId: '',
                 verifiedEmployee: null,
@@ -1336,6 +1339,18 @@
                         .select('*')
                         .eq('tenant_id', this._tid())
                         .single();
+
+                    // Load Corporate/GC config from its own dedicated table (isolated
+                    // from Ops/Maintenance settings, which live in system_config_82)
+                    const { data: configCorp, error: configCorpError } = await this.supabase
+                        .from('system_config')
+                        .select('*')
+                        .eq('tenant_id', this._tid())
+                        .single();
+
+                    if (configCorpError && configCorpError.code !== 'PGRST116') {
+                        console.warn('Corp config error:', configCorpError);
+                    }
                     
                     if (configError && configError.code !== 'PGRST116') {
                         console.warn('Config error:', configError);
@@ -1422,6 +1437,15 @@
                         if (config.ejs_pubkey)   { this.state.ejsPublicKey  = config.ejs_pubkey;   localStorage.setItem('ejs_pubkey',         config.ejs_pubkey); }
                         if (config.planner_email){ this.state.plannerEmail  = config.planner_email; localStorage.setItem('ejs_planner_email', config.planner_email); }
                         console.log('✅ Loaded system config from Supabase — ejs_service:', config.ejs_service || '(empty)', '| ejs_template:', config.ejs_template || '(empty)', '| ejs_pubkey:', config.ejs_pubkey ? config.ejs_pubkey.substring(0,6)+'…' : '(empty)');
+                    }
+
+                    // Corporate/GC settings live in their own table (system_config),
+                    // completely separate from Ops/Maintenance (system_config_82)
+                    if (configCorp) {
+                        this.state.biddingDeadlineCorp = configCorp.bidding_deadline || '';
+                        this.state.biddingYearCorp = configCorp.bidding_year || 2026;
+                        this.state.isProcessedCorp = configCorp.is_processed || false;
+                        console.log('✅ Loaded Corporate/GC config from system_config table');
                     }
 
                     // Load on-call dates from dedicated oncall_dates table
@@ -1685,7 +1709,7 @@
                         this.updateSystemStatus(`Saving employees (${saved}/${empTotal})...`);
                     }
 
-                    // ── 2. Save system config ──
+                    // ── 2. Save system config (Ops/Maintenance) ──
                     this.updateSystemStatus('Saving system config...');
                     const { error: configError } = await this.supabase
                         .from('system_config_82')
@@ -1705,6 +1729,21 @@
                         }, { onConflict: 'id' });
 
                     if (configError) console.warn('Config save warning:', configError.message);
+
+                    // ── 2b. Save Corporate/GC system config to its own dedicated table ──
+                    this.updateSystemStatus('Saving Corporate/GC config...');
+                    const { error: configCorpError } = await this.supabase
+                        .from('system_config')
+                        .upsert({
+                            id: 1,
+                            tenant_id: this._tid(),
+                            bidding_deadline: this.state.biddingDeadlineCorp,
+                            bidding_year: this.state.biddingYearCorp,
+                            is_processed: this.state.isProcessedCorp,
+                            last_updated: new Date().toISOString()
+                        }, { onConflict: 'id' });
+
+                    if (configCorpError) console.warn('Corp config save warning:', configCorpError.message);
 
                     // ── 2b. Save on-call dates to dedicated table ──
                     this.updateSystemStatus('Saving on-call dates...');
@@ -1780,6 +1819,9 @@
                     localStorage.setItem('biddingDeadline', this.state.biddingDeadline);
                     localStorage.setItem('biddingYear', this.state.biddingYear.toString());
                     localStorage.setItem('isProcessed', JSON.stringify(this.state.isProcessed));
+                    localStorage.setItem('biddingDeadlineCorp', this.state.biddingDeadlineCorp);
+                    localStorage.setItem('biddingYearCorp', this.state.biddingYearCorp.toString());
+                    localStorage.setItem('isProcessedCorp', JSON.stringify(this.state.isProcessedCorp));
                     localStorage.setItem('plannerPassword', this.state.plannerPassword);
                     localStorage.setItem('plannerEmail',    this.state.plannerEmail || 'a_abdulqader@outlook.com');
                     localStorage.setItem('results', JSON.stringify(this.state.results));
@@ -1807,6 +1849,9 @@
                         this.state.biddingDeadline = localStorage.getItem('biddingDeadline') || '';
                         this.state.biddingYear = parseInt(localStorage.getItem('biddingYear')) || 2026;
                         this.state.isProcessed = JSON.parse(localStorage.getItem('isProcessed') || 'false');
+                        this.state.biddingDeadlineCorp = localStorage.getItem('biddingDeadlineCorp') || '';
+                        this.state.biddingYearCorp = parseInt(localStorage.getItem('biddingYearCorp')) || 2026;
+                        this.state.isProcessedCorp = JSON.parse(localStorage.getItem('isProcessedCorp') || 'false');
                         this.state.plannerPassword = localStorage.getItem('plannerPassword') || 'admin123';
                         if (!this.state.plannerPassword) this.state.plannerPassword = 'admin123';
                         this.state.plannerEmail    = localStorage.getItem('plannerEmail')    || 'a_abdulqader@outlook.com';
@@ -2979,8 +3024,8 @@
 
                 // Countdown
                 const deadlineCountdownGC = (() => {
-                    if (!this.state.biddingDeadline) return '';
-                    const dl = new Date(this.state.biddingDeadline);
+                    if (!this.state.biddingDeadlineCorp) return '';
+                    const dl = new Date(this.state.biddingDeadlineCorp);
                     const diff = dl - new Date();
                     if (diff <= 0) return `<div class="mb-4 bg-red-50 border border-red-300 rounded-xl p-3 text-center"><span class="text-red-700 font-bold">⛔ Bidding deadline has passed</span></div>`;
                     const d=Math.floor(diff/86400000),h=Math.floor((diff%86400000)/3600000),m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000);
@@ -2995,7 +3040,7 @@
                         <div class="bg-white rounded-xl shadow-xl p-6 mb-6 border-t-4 border-yellow-400">
                             <div class="flex items-center gap-3 mb-4">
                                 <span class="text-3xl">⭐</span>
-                                <h2 class="text-2xl font-bold">Golden Command — ${gcUser.name} — Leave Bidding ${this.state.biddingYear}</h2>
+                                <h2 class="text-2xl font-bold">Golden Command — ${gcUser.name} — Leave Bidding ${this.state.biddingYearCorp}</h2>
                             </div>
                             
                             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -3044,7 +3089,7 @@
                             <div class="bg-white rounded-xl shadow-xl p-6 border-l-4 border-yellow-400">
                                 <h3 class="text-xl font-bold mb-4">⭐ Place New GC Bid</h3>
                                 
-                                ${this.state.isProcessed ? `
+                                ${this.state.isProcessedCorp ? `
                                     <div class="bg-yellow-50 border border-yellow-200 rounded p-4 mb-4">
                                         <p class="font-semibold">⚠️ Bidding has been processed. No more bids allowed.</p>
                                     </div>
@@ -3062,8 +3107,8 @@
                                                 <button
                                                     data-slot="${slot.id}"
                                                     onclick="app.setGCSelectedSlot('${slot.id}')"
-                                                    class="gc-slot-btn w-full p-3 rounded-lg font-semibold text-left transition-all border ${this.state.isProcessed ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : (isActive ? (activeMap[slot.color] || 'bg-yellow-400 text-yellow-900 border-yellow-500') : (colorMap[slot.color] || 'bg-yellow-50 hover:bg-yellow-100 text-gray-800 border-yellow-300'))}"
-                                                    ${this.state.isProcessed ? 'disabled' : ''}
+                                                    class="gc-slot-btn w-full p-3 rounded-lg font-semibold text-left transition-all border ${this.state.isProcessedCorp ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : (isActive ? (activeMap[slot.color] || 'bg-yellow-400 text-yellow-900 border-yellow-500') : (colorMap[slot.color] || 'bg-yellow-50 hover:bg-yellow-100 text-gray-800 border-yellow-300'))}"
+                                                    ${this.state.isProcessedCorp ? 'disabled' : ''}
                                                 >
                                                     ${slot.name} — ${slot.days} consecutive days
                                                     ${isActive ? '<span class="float-right">✓ Selected</span>' : ''}
@@ -3074,8 +3119,8 @@
                                         <button
                                             data-slot="gcCustom"
                                             onclick="app.setGCSelectedSlot('gcCustom')"
-                                            class="gc-slot-btn w-full p-3 rounded-lg font-semibold text-left transition-all border ${this.state.isProcessed ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : (window.gcSelectedSlot === 'gcCustom' ? 'bg-yellow-400 text-yellow-900 border-yellow-500' : 'bg-yellow-50 hover:bg-yellow-100 text-yellow-900 border-yellow-400')}"
-                                            ${this.state.isProcessed ? 'disabled' : ''}
+                                            class="gc-slot-btn w-full p-3 rounded-lg font-semibold text-left transition-all border ${this.state.isProcessedCorp ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : (window.gcSelectedSlot === 'gcCustom' ? 'bg-yellow-400 text-yellow-900 border-yellow-500' : 'bg-yellow-50 hover:bg-yellow-100 text-yellow-900 border-yellow-400')}"
+                                            ${this.state.isProcessedCorp ? 'disabled' : ''}
                                         >
                                             ⭐ Custom — Choose any start &amp; end date freely
                                             ${window.gcSelectedSlot === 'gcCustom' ? '<span class="float-right">✓ Selected</span>' : ''}
@@ -3124,8 +3169,8 @@
                                                 type="date"
                                                 id="gcStartDate"
                                                 class="w-full px-4 py-2 border-2 border-yellow-300 rounded-lg focus:border-yellow-500 focus:outline-none"
-                                                min="${this.state.biddingYear}-01-01"
-                                                max="${this.state.biddingYear}-12-31"
+                                                min="${this.state.biddingYearCorp}-01-01"
+                                                max="${this.state.biddingYearCorp}-12-31"
                                                 onchange="app.updateGCEndDate()"
                                             />
                                         </div>
@@ -3135,8 +3180,8 @@
                                                 type="date"
                                                 id="gcEndDate"
                                                 class="w-full px-4 py-2 border-2 border-yellow-300 rounded-lg focus:border-yellow-500 focus:outline-none"
-                                                min="${this.state.biddingYear}-01-01"
-                                                max="${this.state.biddingYear}-12-31"
+                                                min="${this.state.biddingYearCorp}-01-01"
+                                                max="${this.state.biddingYearCorp}-12-31"
                                                 onchange="app.updateGCDateInfo()"
                                             />
                                         </div>
@@ -3149,7 +3194,7 @@
                                 <button
                                     onclick="app.submitGCBid()"
                                     class="w-full px-6 py-3 bg-yellow-400 text-yellow-900 rounded-lg font-semibold hover:bg-yellow-500 transition-colors shadow-sm"
-                                    ${(this.state.isProcessed || this.isBiddingClosed()) ? 'disabled' : ''}
+                                    ${(this.state.isProcessedCorp || this.isBiddingClosedCorp()) ? 'disabled' : ''}
                                 >
                                     ⭐ Submit Golden Command Bid
                                 </button>
@@ -3188,7 +3233,7 @@
                                                         <button
                                                             onclick="app.removeGCBid('${bid.slotType}', '${bid.startDate}')"
                                                             class="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
-                                                            ${this.state.isProcessed ? 'disabled' : ''}
+                                                            ${this.state.isProcessedCorp ? 'disabled' : ''}
                                                         >
                                                             ✕ Remove
                                                         </button>
@@ -3219,12 +3264,12 @@
                 }
 
                 // Live countdown ticker for GC
-                if (this.state.biddingDeadline) {
+                if (this.state.biddingDeadlineCorp) {
                     clearInterval(window._gcCountdownInterval);
                     window._gcCountdownInterval = setInterval(() => {
                         const el = document.getElementById('gcCountdownTimer');
                         if (!el) { clearInterval(window._gcCountdownInterval); return; }
-                        const diff = new Date(this.state.biddingDeadline) - new Date();
+                        const diff = new Date(this.state.biddingDeadlineCorp) - new Date();
                         if (diff <= 0) { el.textContent = 'EXPIRED'; clearInterval(window._gcCountdownInterval); return; }
                         const d=Math.floor(diff/86400000),h=Math.floor((diff%86400000)/3600000),m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000);
                         el.textContent = `${d}d ${h}h ${m}m ${s}s`;
@@ -3239,7 +3284,7 @@
                 const buttons = document.querySelectorAll('.gc-slot-btn');
                 buttons.forEach(btn => {
                     const isSelected = btn.dataset.slot === slotId;
-                    if (this.state.isProcessed) {
+                    if (this.state.isProcessedCorp) {
                         btn.className = 'gc-slot-btn w-full p-3 rounded-lg font-semibold text-left transition-all border bg-gray-200 text-gray-500 cursor-not-allowed';
                     } else if (isSelected) {
                         btn.className = 'gc-slot-btn w-full p-3 rounded-lg font-semibold text-left transition-all border bg-yellow-400 text-yellow-900 border-yellow-500';
@@ -3289,7 +3334,7 @@
                 const monthSelect = document.getElementById('gcSelectedMonth');
                 if (monthSelect) {
                     const monthText = document.getElementById('gcSelectedMonthText');
-                    if (monthText) monthText.textContent = monthSelect.value + ' ' + this.state.biddingYear;
+                    if (monthText) monthText.textContent = monthSelect.value + ' ' + this.state.biddingYearCorp;
                 }
             },
 
@@ -3367,12 +3412,12 @@
             },
 
             submitGCBid() {
-                if (this.state.isProcessed) {
+                if (this.state.isProcessedCorp) {
                     alert('Bidding has been processed. No more bids allowed.');
                     return;
                 }
 
-                if (this.isBiddingClosed()) {
+                if (this.isBiddingClosedCorp()) {
                     alert('⛔ The bidding deadline has passed. You can no longer submit bids.');
                     return;
                 }
@@ -3472,7 +3517,7 @@
             },
 
             async removeGCBid(slotType, startDate) {
-                if (this.state.isProcessed) {
+                if (this.state.isProcessedCorp) {
                     alert('Cannot remove bids after processing.');
                     return;
                 }
@@ -3529,8 +3574,8 @@
 
                 // Countdown
                 const deadlineCountdownCS = (() => {
-                    if (!this.state.biddingDeadline) return '';
-                    const dl = new Date(this.state.biddingDeadline);
+                    if (!this.state.biddingDeadlineCorp) return '';
+                    const dl = new Date(this.state.biddingDeadlineCorp);
                     const diff = dl - new Date();
                     if (diff <= 0) return `<div class="mb-4 bg-red-50 border border-red-300 rounded-xl p-3 text-center"><span class="text-red-700 font-bold">⛔ Bidding deadline has passed</span></div>`;
                     const d=Math.floor(diff/86400000),h=Math.floor((diff%86400000)/3600000),m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000);
@@ -3545,7 +3590,7 @@
                         <div class="bg-white rounded-xl shadow-xl p-6 mb-6 border-t-4 border-blue-500">
                             <div class="flex items-center gap-3 mb-4">
                                 <span class="text-3xl">🏢</span>
-                                <h2 class="text-2xl font-bold">Corporate Staff — ${csUser.name} — Leave Bidding ${this.state.biddingYear}</h2>
+                                <h2 class="text-2xl font-bold">Corporate Staff — ${csUser.name} — Leave Bidding ${this.state.biddingYearCorp}</h2>
                             </div>
 
                             ${(() => {
@@ -3641,7 +3686,7 @@
                             <!-- Left: Place New Bid -->
                             <div class="bg-white rounded-xl shadow-xl p-6 border-l-4 border-blue-500">
                                 <h3 class="text-xl font-bold mb-4">🏢 Place New Corporate Staff Bid</h3>
-                                ${this.state.isProcessed ? `
+                                ${this.state.isProcessedCorp ? `
                                     <div class="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
                                         <p class="font-semibold">⚠️ Bidding has been processed. No more bids allowed.</p>
                                     </div>` : ''}
@@ -3654,8 +3699,8 @@
                                             <button
                                                 onclick="app.csSetSelectedSlot('${slot.id}')"
                                                 data-csslot="${slot.id}"
-                                                class="cs-slot-btn w-full p-3 rounded-lg font-semibold text-left transition-all bg-gray-100 hover:bg-gray-200 text-gray-800 ${this.state.isProcessed ? 'opacity-50 cursor-not-allowed' : ''}"
-                                                ${this.state.isProcessed ? 'disabled' : ''}
+                                                class="cs-slot-btn w-full p-3 rounded-lg font-semibold text-left transition-all bg-gray-100 hover:bg-gray-200 text-gray-800 ${this.state.isProcessedCorp ? 'opacity-50 cursor-not-allowed' : ''}"
+                                                ${this.state.isProcessedCorp ? 'disabled' : ''}
                                             >
                                                 ${slot.name} — ${slot.days} consecutive days
                                             </button>
@@ -3663,8 +3708,8 @@
                                         <button
                                             onclick="app.csSetSelectedSlot('csCustom')"
                                             data-csslot="csCustom"
-                                            class="cs-slot-btn w-full p-3 rounded-lg font-semibold text-left transition-all bg-blue-50 border border-blue-300 hover:bg-blue-100 text-blue-800 ${this.state.isProcessed ? 'opacity-50 cursor-not-allowed' : ''}"
-                                            ${this.state.isProcessed ? 'disabled' : ''}
+                                            class="cs-slot-btn w-full p-3 rounded-lg font-semibold text-left transition-all bg-blue-50 border border-blue-300 hover:bg-blue-100 text-blue-800 ${this.state.isProcessedCorp ? 'opacity-50 cursor-not-allowed' : ''}"
+                                            ${this.state.isProcessedCorp ? 'disabled' : ''}
                                         >
                                             🏢 Custom — Any date range (free choice)
                                         </button>
@@ -3682,7 +3727,7 @@
                                             <label class="block text-sm font-semibold mb-1">Start Date</label>
                                             <input type="date" id="csStartDate"
                                                 class="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                                                min="${this.state.biddingYear}-01-01" max="${this.state.biddingYear}-12-31"
+                                                min="${this.state.biddingYearCorp}-01-01" max="${this.state.biddingYearCorp}-12-31"
                                                 onchange="app.csUpdateEndDate()" />
                                         </div>
                                         <div>
@@ -3697,8 +3742,8 @@
                                 </div>
 
                                 <button onclick="app.submitCSBid()"
-                                    class="w-full px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition ${(this.state.isProcessed || this.isBiddingClosed()) ? 'opacity-50 cursor-not-allowed' : ''}"
-                                    ${(this.state.isProcessed || this.isBiddingClosed()) ? 'disabled' : ''}>
+                                    class="w-full px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition ${(this.state.isProcessedCorp || this.isBiddingClosedCorp()) ? 'opacity-50 cursor-not-allowed' : ''}"
+                                    ${(this.state.isProcessedCorp || this.isBiddingClosedCorp()) ? 'disabled' : ''}>
                                     🏢 Submit Corporate Staff Bid
                                 </button>
                             </div>
@@ -3744,7 +3789,7 @@
                 window._csCountdownTimer = setInterval(() => {
                     const el = document.getElementById('csCountdownTimer');
                     if (!el) { clearInterval(window._csCountdownTimer); return; }
-                    const diff = new Date(this.state.biddingDeadline) - new Date();
+                    const diff = new Date(this.state.biddingDeadlineCorp) - new Date();
                     if (diff <= 0) { el.textContent = 'EXPIRED'; clearInterval(window._csCountdownTimer); return; }
                     const d=Math.floor(diff/86400000),h=Math.floor((diff%86400000)/3600000),m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000);
                     el.textContent = `${d}d ${h}h ${m}m ${s}s`;
@@ -3834,8 +3879,8 @@
             },
 
             submitCSBid() {
-                if (this.state.isProcessed) { alert('Bidding has been processed. No more bids.'); return; }
-                if (this.isBiddingClosed()) { alert('⛔ The bidding deadline has passed. You can no longer submit bids.'); return; }
+                if (this.state.isProcessedCorp) { alert('Bidding has been processed. No more bids.'); return; }
+                if (this.isBiddingClosedCorp()) { alert('⛔ The bidding deadline has passed. You can no longer submit bids.'); return; }
                 const csUser = this.state.verifiedEmployee;
                 if (!csUser) return;
                 if (!window.csSelectedSlot) { alert('⚠️ Please select a slot type first.'); return; }
@@ -3922,7 +3967,7 @@
             },
 
             async removeCSBid(slotType, startDate) {
-                if (this.state.isProcessed) { alert('Cannot remove bids after processing.'); return; }
+                if (this.state.isProcessedCorp) { alert('Cannot remove bids after processing.'); return; }
                 if (!confirm('Remove this Corporate Staff bid?')) return;
                 const csUser = this.state.verifiedEmployee;
 
@@ -4080,7 +4125,27 @@
                                     <h3 class="text-xl font-bold text-red-900">${dept}</h3>
                                     <span class="text-xs px-2 py-1 bg-red-100 text-red-800 rounded">${empCount} maintenance staff</span>
                                 </div>
-                                <span class="text-sm text-gray-500">12-Month Slot Configuration</span>
+                                <div class="flex items-center gap-3">
+                                    <span class="text-sm text-gray-500">12-Month Slot Configuration</span>
+                                    <button onclick="app.resetMaintDeptSlotsToDefault('${dept}')" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-semibold rounded hover:bg-gray-300" title="Clears saved dates/capacities/on-off for this roster group and restores the auto-computed default 30-day blocks">↺ Reset to Default Dates</button>
+                                </div>
+                            </div>
+                            <div class="px-4 pt-3">
+                                <details class="bg-indigo-50 border border-indigo-200 rounded-lg">
+                                    <summary class="cursor-pointer px-3 py-2 font-semibold text-indigo-800 text-sm">📋 Bulk Paste Import (paste all 12 months at once — from Excel or a saved template)</summary>
+                                    <div class="p-3 pt-1">
+                                        <p class="text-xs text-indigo-700 mb-2">
+                                            One row per month, columns tab- or comma-separated, dates as DD/MM/YYYY, "on" as 1 or 0:<br>
+                                            <code>Month, SA-Start, SA-End, SA-Max, SA-On, SB-Start, SB-End, SB-Max, SB-On, SC-Start, SC-End, SC-Max, SC-On</code>
+                                        </p>
+                                        <textarea id="bulkImportMaint-${dept}" rows="4" placeholder="January\t01/01/2027\t15/01/2027\t4\t1\t16/01/2027\t30/01/2027\t4\t1\t01/01/2027\t15/01/2027\t1\t1"
+                                            class="w-full text-xs font-mono border border-indigo-300 rounded p-2"></textarea>
+                                        <div class="flex gap-2 mt-2">
+                                            <button onclick="app.bulkImportMaintDeptSlots('${dept}')" class="px-4 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded hover:bg-indigo-700">Import &amp; Save</button>
+                                            <span id="bulkImportMaintMsg-${dept}" class="text-xs self-center"></span>
+                                        </div>
+                                    </div>
+                                </details>
                             </div>
                             <div class="p-4 overflow-x-auto">
                                 <table class="w-full text-sm border-collapse">
@@ -4248,6 +4313,97 @@
                 this.setActiveView('admin');
             },
 
+            // Clears all saved date/capacity/on-off overrides for one roster group, restoring
+            // the auto-computed default dates (30-day blocks) that show when nothing is saved.
+            async resetMaintDeptSlotsToDefault(dept) {
+                const prefix = `cal-maint-${dept}-`;
+                const keysToRemove = Object.keys(this.state.maintSlotCapacities).filter(k => k.startsWith(prefix));
+
+                if (keysToRemove.length === 0) {
+                    alert(`No saved slot configuration found for "${dept}" — it's already showing default dates.`);
+                    return;
+                }
+
+                if (!confirm(`Reset "${dept}" to default dates?\n\nThis will clear ${keysToRemove.length} saved field(s) (dates, capacities, on/off toggles) for all 12 months. This cannot be undone once saved.`)) {
+                    return;
+                }
+
+                keysToRemove.forEach(k => delete this.state.maintSlotCapacities[k]);
+                await this.saveConfigToSupabase();
+
+                const area = document.getElementById('maintConfigArea');
+                const filterVal = document.getElementById('maintDeptFilter')?.value || 'all';
+                if (area) area.innerHTML = this.renderMaintDeptConfig(filterVal);
+
+                alert(`✅ "${dept}" reset to default dates.`);
+            },
+
+            // Parses pasted rows (tab or comma separated) into maintSlotCapacities for one roster
+            // group (3 slots: SA/SB/SC), then saves to Supabase in a single call.
+            async bulkImportMaintDeptSlots(dept) {
+                const ta = document.getElementById(`bulkImportMaint-${dept}`);
+                const msgEl = document.getElementById(`bulkImportMaintMsg-${dept}`);
+                if (!ta || !ta.value.trim()) {
+                    if (msgEl) { msgEl.textContent = '⚠️ Paste some rows first.'; msgEl.className = 'text-xs self-center text-red-600'; }
+                    return;
+                }
+
+                const ddmmyyyyToIso = (s) => {
+                    s = (s || '').trim();
+                    const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+                    if (!m) return null;
+                    const [, d, mo, y] = m;
+                    return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+                };
+                const toBool = (s) => ['1', 'true', 'yes', 'y', 'on'].includes((s || '').trim().toLowerCase());
+
+                const lines = ta.value.split('\n').map(l => l.trim()).filter(Boolean);
+                let rowsImported = 0, fieldsImported = 0;
+                const errors = [];
+
+                lines.forEach((line, idx) => {
+                    const cols = line.includes('\t') ? line.split('\t') : line.split(',');
+                    const cols_ = cols.map(c => c.trim());
+                    if (cols_.length < 13) {
+                        errors.push(`Row ${idx + 1}: expected 13 columns, found ${cols_.length}`);
+                        return;
+                    }
+                    const [month, ...rest] = cols_;
+                    if (!this.state.months.includes(month)) {
+                        errors.push(`Row ${idx + 1}: "${month}" is not a valid month name`);
+                        return;
+                    }
+                    const slots = ['SA', 'SB', 'SC'];
+                    slots.forEach((slotId, si) => {
+                        const [startRaw, endRaw, maxRaw, onRaw] = rest.slice(si * 4, si * 4 + 4);
+                        const startIso = ddmmyyyyToIso(startRaw);
+                        const endIso = ddmmyyyyToIso(endRaw);
+                        if (startRaw && !startIso) { errors.push(`Row ${idx + 1} (${month} ${slotId}): bad start date "${startRaw}"`); return; }
+                        if (endRaw && !endIso) { errors.push(`Row ${idx + 1} (${month} ${slotId}): bad end date "${endRaw}"`); return; }
+                        if (startIso) { this.state.maintSlotCapacities[`cal-maint-${dept}-${month}-${slotId}-start`] = startIso; fieldsImported++; }
+                        if (endIso) { this.state.maintSlotCapacities[`cal-maint-${dept}-${month}-${slotId}-end`] = endIso; fieldsImported++; }
+                        if (maxRaw !== undefined && maxRaw !== '') { this.state.maintSlotCapacities[`cal-maint-${dept}-${month}-${slotId}-capacity`] = parseInt(maxRaw) || 0; fieldsImported++; }
+                        this.state.maintSlotCapacities[`cal-maint-${dept}-${month}-${slotId}-enabled`] = toBool(onRaw);
+                        fieldsImported++;
+                    });
+                    rowsImported++;
+                });
+
+                if (errors.length > 0) {
+                    if (msgEl) { msgEl.textContent = `⚠️ ${errors.length} issue(s) — see console.`; msgEl.className = 'text-xs self-center text-red-600'; }
+                    console.warn('Bulk import issues:', errors);
+                    if (rowsImported === 0) return;
+                }
+
+                await this.saveConfigToSupabase();
+
+                const area = document.getElementById('maintConfigArea');
+                const filterVal = document.getElementById('maintDeptFilter')?.value || 'all';
+                if (area) area.innerHTML = this.renderMaintDeptConfig(filterVal);
+
+                if (msgEl) { msgEl.textContent = `✅ Imported ${rowsImported} month(s), ${fieldsImported} fields saved.`; msgEl.className = 'text-xs self-center text-green-700'; }
+            },
+
             
             renderDeptConfig(filter) {
                 const employeeDepts = [...new Set(this.state.employees.map(e => e.department || 'Unassigned'))];
@@ -4316,7 +4472,27 @@
                                         }
                                     </div>
                                 </div>
-                                <span class="text-sm text-gray-500">12-Month Slot Configuration</span>
+                                <div class="flex items-center gap-3">
+                                    <span class="text-sm text-gray-500">12-Month Slot Configuration</span>
+                                    <button onclick="app.resetDeptSlotsToDefault('${dept}')" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-semibold rounded hover:bg-gray-300" title="Clears saved dates/capacities/on-off for this department and restores the auto-computed default 30-day blocks">↺ Reset to Default Dates</button>
+                                </div>
+                            </div>
+                            <div class="px-4 pt-3">
+                                <details class="bg-indigo-50 border border-indigo-200 rounded-lg">
+                                    <summary class="cursor-pointer px-3 py-2 font-semibold text-indigo-800 text-sm">📋 Bulk Paste Import (paste all 12 months at once — from Excel or a saved template)</summary>
+                                    <div class="p-3 pt-1">
+                                        <p class="text-xs text-indigo-700 mb-2">
+                                            One row per month, columns tab- or comma-separated, dates as DD/MM/YYYY, "on" as 1 or 0:<br>
+                                            <code>Month, SA-Start, SA-End, SA-Max, SA-On, SB-Start, SB-End, SB-Max, SB-On, SC-Start, SC-End, SC-Max, SC-On, SD-Start, SD-End, SD-Max, SD-On</code>
+                                        </p>
+                                        <textarea id="bulkImport-${dept}" rows="4" placeholder="January\t01/01/2027\t15/01/2027\t4\t1\t16/01/2027\t30/01/2027\t4\t1\t01/01/2027\t15/01/2027\t1\t1\t16/01/2027\t04/02/2027\t1\t1"
+                                            class="w-full text-xs font-mono border border-indigo-300 rounded p-2"></textarea>
+                                        <div class="flex gap-2 mt-2">
+                                            <button onclick="app.bulkImportDeptSlots('${dept}')" class="px-4 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded hover:bg-indigo-700">Import &amp; Save</button>
+                                            <span id="bulkImportMsg-${dept}" class="text-xs self-center"></span>
+                                        </div>
+                                    </div>
+                                </details>
                             </div>
                             <div class="p-4 overflow-x-auto">
                                 <table class="w-full text-sm border-collapse">
@@ -4744,6 +4920,97 @@
                 }
                 
                 await this.saveConfigToSupabase();
+            },
+
+            // Clears all saved date/capacity/on-off overrides for one department, restoring
+            // the auto-computed default dates (30-day blocks) that show when nothing is saved.
+            async resetDeptSlotsToDefault(dept) {
+                const prefix = `cal-${dept}-`;
+                const keysToRemove = Object.keys(this.state.slotCapacities).filter(k => k.startsWith(prefix));
+
+                if (keysToRemove.length === 0) {
+                    alert(`No saved slot configuration found for "${dept}" — it's already showing default dates.`);
+                    return;
+                }
+
+                if (!confirm(`Reset "${dept}" to default dates?\n\nThis will clear ${keysToRemove.length} saved field(s) (dates, capacities, on/off toggles) for all 12 months. This cannot be undone once saved.`)) {
+                    return;
+                }
+
+                keysToRemove.forEach(k => delete this.state.slotCapacities[k]);
+                await this.saveConfigToSupabase();
+
+                const filterVal = document.getElementById('deptFilter')?.value || 'all';
+                const configArea = document.getElementById('configArea');
+                if (configArea) configArea.innerHTML = this.renderDeptConfig(filterVal);
+
+                alert(`✅ "${dept}" reset to default dates.`);
+            },
+
+            // Parses pasted rows (tab or comma separated) into slotCapacities for one department,
+            // then saves to Supabase in a single call — avoids re-typing every field by hand.
+            async bulkImportDeptSlots(dept) {
+                const ta = document.getElementById(`bulkImport-${dept}`);
+                const msgEl = document.getElementById(`bulkImportMsg-${dept}`);
+                if (!ta || !ta.value.trim()) {
+                    if (msgEl) { msgEl.textContent = '⚠️ Paste some rows first.'; msgEl.className = 'text-xs self-center text-red-600'; }
+                    return;
+                }
+
+                const ddmmyyyyToIso = (s) => {
+                    s = (s || '').trim();
+                    const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+                    if (!m) return null;
+                    const [, d, mo, y] = m;
+                    return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+                };
+                const toBool = (s) => ['1', 'true', 'yes', 'y', 'on'].includes((s || '').trim().toLowerCase());
+
+                const lines = ta.value.split('\n').map(l => l.trim()).filter(Boolean);
+                let rowsImported = 0, fieldsImported = 0;
+                const errors = [];
+
+                lines.forEach((line, idx) => {
+                    const cols = line.includes('\t') ? line.split('\t') : line.split(',');
+                    const cols_ = cols.map(c => c.trim());
+                    if (cols_.length < 17) {
+                        errors.push(`Row ${idx + 1}: expected 17 columns, found ${cols_.length}`);
+                        return;
+                    }
+                    const [month, ...rest] = cols_;
+                    if (!this.state.months.includes(month)) {
+                        errors.push(`Row ${idx + 1}: "${month}" is not a valid month name`);
+                        return;
+                    }
+                    const slots = ['SA', 'SB', 'SC', 'SD'];
+                    slots.forEach((slotId, si) => {
+                        const [startRaw, endRaw, maxRaw, onRaw] = rest.slice(si * 4, si * 4 + 4);
+                        const startIso = ddmmyyyyToIso(startRaw);
+                        const endIso = ddmmyyyyToIso(endRaw);
+                        if (startRaw && !startIso) { errors.push(`Row ${idx + 1} (${month} ${slotId}): bad start date "${startRaw}"`); return; }
+                        if (endRaw && !endIso) { errors.push(`Row ${idx + 1} (${month} ${slotId}): bad end date "${endRaw}"`); return; }
+                        if (startIso) { this.state.slotCapacities[`cal-${dept}-${month}-${slotId}-start`] = startIso; fieldsImported++; }
+                        if (endIso) { this.state.slotCapacities[`cal-${dept}-${month}-${slotId}-end`] = endIso; fieldsImported++; }
+                        if (maxRaw !== undefined && maxRaw !== '') { this.state.slotCapacities[`cal-${dept}-${month}-${slotId}-capacity`] = parseInt(maxRaw) || 0; fieldsImported++; }
+                        this.state.slotCapacities[`cal-${dept}-${month}-${slotId}-enabled`] = toBool(onRaw);
+                        fieldsImported++;
+                    });
+                    rowsImported++;
+                });
+
+                if (errors.length > 0) {
+                    if (msgEl) { msgEl.textContent = `⚠️ ${errors.length} issue(s) — see console.`; msgEl.className = 'text-xs self-center text-red-600'; }
+                    console.warn('Bulk import issues:', errors);
+                    if (rowsImported === 0) return; // nothing usable was imported
+                }
+
+                await this.saveConfigToSupabase();
+
+                const filterVal = document.getElementById('deptFilter')?.value || 'all';
+                const configArea = document.getElementById('configArea');
+                if (configArea) configArea.innerHTML = this.renderDeptConfig(filterVal);
+
+                if (msgEl) { msgEl.textContent = `✅ Imported ${rowsImported} month(s), ${fieldsImported} fields saved.`; msgEl.className = 'text-xs self-center text-green-700'; }
             },
             
             async saveSlotConfiguration() {
@@ -5490,7 +5757,7 @@
                             </div>
                             
                             <div class="mb-6 p-4 bg-blue-50 rounded-lg">
-                                <label class="block font-semibold mb-2">Set Bidding Deadline:</label>
+                                <label class="block font-semibold mb-2">Set Bidding Deadline (Ops &amp; Maintenance):</label>
                                 <input
                                     type="datetime-local"
                                     id="biddingDeadline"
@@ -5498,6 +5765,41 @@
                                     class="w-full px-4 py-2 border-2 border-blue-300 rounded-lg"
                                     onchange="app.setBiddingDeadline(this.value)"
                                 />
+                            </div>
+
+                            <div class="mb-6 p-4 bg-yellow-50 rounded-lg border-2 border-yellow-300">
+                                <label class="block font-semibold mb-2">⭐ Corporate &amp; Golden Command Bidding Settings (independent):</label>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                                    <div>
+                                        <label class="block text-sm font-semibold mb-1">Deadline:</label>
+                                        <input
+                                            type="datetime-local"
+                                            id="biddingDeadlineCorp"
+                                            value="${this.state.biddingDeadlineCorp}"
+                                            class="w-full px-4 py-2 border-2 border-yellow-400 rounded-lg"
+                                            onchange="app.setBiddingDeadlineCorp(this.value)"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold mb-1">Bidding Year:</label>
+                                        <select
+                                            id="biddingYearCorpSelect"
+                                            class="w-full px-4 py-2 border-2 border-yellow-400 rounded-lg font-semibold"
+                                            onchange="app.setBiddingYearCorp(parseInt(this.value))"
+                                        >
+                                            ${[this.state.biddingYear - 1, this.state.biddingYear, this.state.biddingYear + 1].map(year => `
+                                                <option value="${year}" ${year === this.state.biddingYearCorp ? 'selected' : ''}>${year}</option>
+                                            `).join('')}
+                                        </select>
+                                    </div>
+                                </div>
+                                <button
+                                    onclick="app.toggleCorpLock()"
+                                    class="w-full px-6 py-3 rounded-lg font-semibold text-white ${this.state.isProcessedCorp ? 'bg-gray-500 hover:bg-gray-600' : 'bg-yellow-600 hover:bg-yellow-700'}"
+                                >
+                                    ${this.state.isProcessedCorp ? '🔓 Unlock Corporate &amp; GC Bidding' : '🔒 Lock Corporate &amp; GC Bidding'}
+                                </button>
+                                <p class="text-xs text-gray-500 mt-2">This deadline, year, and lock apply only to Golden Command &amp; Corporate Staff bidding — Ops/Maintenance are unaffected, and vice versa.</p>
                             </div>
 
                             <div class="mb-6 p-4 bg-purple-50 rounded-lg">
@@ -5515,11 +5817,7 @@
                                 </select>
                             </div>
 
-                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                                <div class="bg-blue-50 p-4 rounded-lg">
-                                    <p class="text-2xl font-bold">${this.state.employees.length}</p>
-                                    <p class="text-sm text-gray-600">Total Operation Staff</p>
-                                </div>
+                            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
                                 <div class="bg-green-50 p-4 rounded-lg">
                                     <p class="text-2xl font-bold" id="adminBidCount">${this.state.bids.length}</p>
                                     <p class="text-sm text-gray-600">Total Bids</p>
@@ -5530,7 +5828,11 @@
                                 </div>
                                 <div class="bg-purple-50 p-4 rounded-lg">
                                     <p class="text-2xl font-bold">${this.state.isProcessed ? 'Yes' : 'No'}</p>
-                                    <p class="text-sm text-gray-600">Processed</p>
+                                    <p class="text-sm text-gray-600">Ops Processed</p>
+                                </div>
+                                <div class="bg-yellow-100 p-4 rounded-lg">
+                                    <p class="text-2xl font-bold">${this.state.isProcessedCorp ? '🔒 Locked' : '🔓 Open'}</p>
+                                    <p class="text-sm text-gray-600">Corporate &amp; GC Bidding</p>
                                 </div>
                             </div>
 
@@ -5620,7 +5922,8 @@
                                 <div class="text-sm text-gray-600 space-y-1">
                                     <p>&bull; Scheduling Rows configured: ${allDepts.length}</p>
                                     <p>&bull; Slot capacities configured: ${Object.keys(this.state.slotCapacities).length > 0 ? 'Yes' : 'No'}</p>
-                                    <p>&bull; Bidding year: ${this.state.biddingYear}</p>
+                                    <p>&bull; Bidding year (Ops/Maint): ${this.state.biddingYear}</p>
+                                    <p>&bull; Bidding year (Corporate/GC): ${this.state.biddingYearCorp}</p>
                                     <p>&bull; Last sync: ${this.state.employees.length > 0 ? 'Data loaded' : 'No data'}</p>
                                 </div>
                             </div>
@@ -6961,15 +7264,19 @@
             },
 
             // ==================== RESET SYSTEM ====================
+            // Independent from Configure Slots (Ops & Maintenance): this resets employees, bids,
+            // results, and on-call dates only. Slot configuration (calendar dates/capacities for
+            // both Ops and Maintenance) is NOT affected — use "Reset to Default Dates" on a
+            // department/roster group in Configure Slots if you need to clear that separately.
             async resetSystem() {
-                if (confirm('⚠️ WARNING: This will reset ALL data including employees, bids, and results. Continue?')) {
+                if (confirm('⚠️ WARNING: This will reset employees, bids, results, and on-call dates. Slot configuration (calendar dates) is NOT affected — use "Reset to Default Dates" on a department if you need to clear that separately. Continue?')) {
                     this.writeAuditLog('SYSTEM_RESET', { employees: this.state.employees.length, bids: this.state.bids.length });
                     localStorage.clear();
                     this.state.employees = [];
                     this.state.bids = [];
                     this.state.results = [];
                     this.state.isProcessed = false;
-                    this.state.slotCapacities = {};
+                    this.state.isProcessedCorp = false;
                     this.state.onCallDates = {};
                     this.state.currentUser = null;
                     this.state.userType = null;
@@ -7346,6 +7653,12 @@
                 return (new Date(this.state.biddingDeadline) - new Date()) <= 0;
             },
 
+            // Independent deadline check for Golden Command & Corporate Staff bidding
+            isBiddingClosedCorp() {
+                if (!this.state.biddingDeadlineCorp) return false;
+                return (new Date(this.state.biddingDeadlineCorp) - new Date()) <= 0;
+            },
+
             // Sets the bidding deadline, ensuring a date-only pick (defaults to 00:00)
             // closes at the END of that day rather than the very start of it.
             setBiddingDeadline(val) {
@@ -7354,6 +7667,34 @@
                 }
                 this.state.biddingDeadline = val;
                 this.saveConfigToSupabase();
+            },
+
+            // Sets the Corporate/GC bidding deadline independently from Ops/Maintenance
+            setBiddingDeadlineCorp(val) {
+                if (val && /T00:00(:00)?$/.test(val)) {
+                    val = val.slice(0, 10) + 'T23:59';
+                }
+                this.state.biddingDeadlineCorp = val;
+                this.saveConfigToSupabase();
+            },
+
+            // Sets the Corporate/GC bidding year independently from Ops/Maintenance
+            setBiddingYearCorp(year) {
+                this.state.biddingYearCorp = year;
+                this.saveConfigToSupabase();
+                this.renderAdminView();
+            },
+
+            // Manually lock/unlock Corporate & GC bidding (mirrors isProcessed for Ops,
+            // but GC/CS bids aren't run through the seniority allocation engine, so this
+            // is a direct toggle rather than a "process" step).
+            toggleCorpLock() {
+                const turningOn = !this.state.isProcessedCorp;
+                if (turningOn && !confirm('Lock Corporate & Golden Command bidding? They will no longer be able to submit or remove bids until unlocked.')) return;
+                this.state.isProcessedCorp = turningOn;
+                this.writeAuditLog(turningOn ? 'CORP_BIDDING_LOCKED' : 'CORP_BIDDING_UNLOCKED', {});
+                this.saveConfigToSupabase();
+                this.renderAdminView();
             },
 
             submitBid() {
@@ -8977,7 +9318,7 @@
             renderManageOnCallView() {
                 const content = document.getElementById('contentArea');
                 const onCallDates = this.state.onCallDates || {};
-                const year = this.state.biddingYear;
+                const year = this.state.biddingYearCorp;
                 const gcUsers = this.state.goldenCommandUsers || [];
                 const csUsers = this.state.corporateStaffUsers || [];
                 const l456InmUsers = this.state.l456InmUsers || [];
@@ -9163,10 +9504,10 @@
                                     <div class="grid grid-cols-2 gap-3 mb-2">
                                         <div><label class="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Week Number</label>
                                             <input type="number" id="ocWeek-${cardEid}" min="1" max="52" placeholder="e.g. 10"
-                                                oninput="(function(el,eid){const w=parseInt(el.value);const y=parseInt(document.getElementById('ocWeekYear-'+eid).value)||app.state.biddingYear;if(w>=1&&w<=52){const r=app.weekNumberToDateRange(w,y);document.getElementById('ocWeekPreview-'+eid).textContent='→ '+r.from+' to '+r.to;}else{document.getElementById('ocWeekPreview-'+eid).textContent='';}})(this,'${cardEid}')"
+                                                oninput="(function(el,eid){const w=parseInt(el.value);const y=parseInt(document.getElementById('ocWeekYear-'+eid).value)||app.state.biddingYearCorp;if(w>=1&&w<=52){const r=app.weekNumberToDateRange(w,y);document.getElementById('ocWeekPreview-'+eid).textContent='→ '+r.from+' to '+r.to;}else{document.getElementById('ocWeekPreview-'+eid).textContent='';}})(this,'${cardEid}')"
                                                 class="w-full px-3 py-2 border ${inputBdr} rounded-lg text-sm focus:outline-none" /></div>
                                         <div><label class="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Year</label>
-                                            <input type="number" id="ocWeekYear-${cardEid}" value="${this.state.biddingYear}" min="2020" max="2040"
+                                            <input type="number" id="ocWeekYear-${cardEid}" value="${this.state.biddingYearCorp}" min="2020" max="2040"
                                                 oninput="(function(el,eid){const w=parseInt(document.getElementById('ocWeek-'+eid).value);const y=parseInt(el.value);if(w>=1&&w<=52&&y>=2020){const r=app.weekNumberToDateRange(w,y);document.getElementById('ocWeekPreview-'+eid).textContent='→ '+r.from+' to '+r.to;}else{document.getElementById('ocWeekPreview-'+eid).textContent='';}})(this,'${cardEid}')"
                                                 class="w-full px-3 py-2 border ${inputBdr} rounded-lg text-sm focus:outline-none" /></div>
                                     </div>
@@ -9183,7 +9524,7 @@
                                                 oninput="_previewOcMultiChips('${cardEid}')"
                                                 class="w-full px-2 py-2 border ${inputBdr} rounded-lg text-xs focus:outline-none font-mono"/></div>
                                         <div><label class="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Year</label>
-                                            <input type="number" id="ocMultiWeekYear-${cardEid}" value="${this.state.biddingYear}" min="2020" max="2040"
+                                            <input type="number" id="ocMultiWeekYear-${cardEid}" value="${this.state.biddingYearCorp}" min="2020" max="2040"
                                                 class="w-full px-2 py-2 border ${inputBdr} rounded-lg text-xs"/></div>
                                     </div>
                                     <div id="ocMultiPreview-${cardEid}" class="flex flex-wrap gap-1 mb-2 min-h-[26px] p-1.5 ${prevBg} rounded border">
@@ -9264,7 +9605,7 @@
                                         oninput="app._ocWeekPreview('${pfx}')"
                                         class="w-full px-3 py-2 border ${inputCol} rounded-lg text-sm focus:outline-none" /></div>
                                 <div><label class="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Year</label>
-                                    <input type="number" id="newOcWeekYear-${pfx}" value="${this.state.biddingYear}" min="2020" max="2040"
+                                    <input type="number" id="newOcWeekYear-${pfx}" value="${this.state.biddingYearCorp}" min="2020" max="2040"
                                         oninput="app._ocWeekPreview('${pfx}')"
                                         class="w-full px-3 py-2 border ${inputCol} rounded-lg text-sm focus:outline-none" /></div>
                             </div>
@@ -9283,7 +9624,7 @@
                                         oninput="app._previewOcMultiChipsTyped('${pfx}')"
                                         class="w-full px-3 py-2 border-2 ${inputCol} rounded-lg text-sm focus:outline-none font-mono" /></div>
                                 <div><label class="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Year</label>
-                                    <input type="number" id="newOcMultiYear-${pfx}" value="${this.state.biddingYear}" min="2020" max="2040"
+                                    <input type="number" id="newOcMultiYear-${pfx}" value="${this.state.biddingYearCorp}" min="2020" max="2040"
                                         class="w-full px-3 py-2 border ${inputCol} rounded-lg text-sm focus:outline-none" /></div>
                             </div>
                             <div id="newOcMultiPreview-${pfx}" class="flex flex-wrap gap-1 mb-3 min-h-[34px] p-2 ${prevBg} rounded-lg border">
@@ -9449,7 +9790,7 @@
             addOnCallWeekNewTyped(pfx) {
                 const empId   = document.getElementById('newOcId-' + pfx)?.value?.trim();
                 const weekNum = parseInt(document.getElementById('newOcWeekNum-' + pfx)?.value);
-                const yr      = parseInt(document.getElementById('newOcWeekYear-' + pfx)?.value) || this.state.biddingYear;
+                const yr      = parseInt(document.getElementById('newOcWeekYear-' + pfx)?.value) || this.state.biddingYearCorp;
                 if (!empId) { alert('⚠️ Please select a staff member first.'); return; }
                 if (!weekNum || weekNum < 1 || weekNum > 52) { alert('⚠️ Enter a valid week (1–52).'); return; }
                 const ocKey = (pfx === 'gc' || pfx === 'cs') ? empId : pfx + '::' + empId;
@@ -9461,7 +9802,7 @@
             addOnCallMultiWeekNewTyped(pfx) {
                 const empId = document.getElementById('newOcId-' + pfx)?.value?.trim();
                 const raw   = document.getElementById('newOcMultiInput-' + pfx)?.value || '';
-                const yr    = parseInt(document.getElementById('newOcMultiYear-' + pfx)?.value) || this.state.biddingYear;
+                const yr    = parseInt(document.getElementById('newOcMultiYear-' + pfx)?.value) || this.state.biddingYearCorp;
                 if (!empId) { alert('⚠️ Please select a staff member first.'); return; }
                 const ocKey = (pfx === 'gc' || pfx === 'cs') ? empId : pfx + '::' + empId;
                 const tokens = raw.split(/[\s,;]+/).filter(Boolean);
@@ -9498,7 +9839,7 @@
 
             addOnCallWeekKeyed(ocKey, cardEid) {
                 const weekNum = parseInt(document.getElementById('ocWeek-' + cardEid)?.value);
-                const yr      = parseInt(document.getElementById('ocWeekYear-' + cardEid)?.value) || this.state.biddingYear;
+                const yr      = parseInt(document.getElementById('ocWeekYear-' + cardEid)?.value) || this.state.biddingYearCorp;
                 if (!weekNum || weekNum < 1 || weekNum > 52) { alert('⚠️ Enter a valid week (1–52).'); return; }
                 const r = this.weekNumberToDateRange(weekNum, yr);
                 this._applyOnCallRange(ocKey, r.from, r.to);
@@ -9506,7 +9847,7 @@
 
             addOnCallMultiWeekKeyed(ocKey, cardEid) {
                 const raw = document.getElementById('ocMultiWeekInput-' + cardEid)?.value || '';
-                const yr  = parseInt(document.getElementById('ocMultiWeekYear-' + cardEid)?.value) || this.state.biddingYear;
+                const yr  = parseInt(document.getElementById('ocMultiWeekYear-' + cardEid)?.value) || this.state.biddingYearCorp;
                 const tokens = raw.split(/[\s,;]+/).filter(Boolean);
                 const weeks  = new Set();
                 for (const t of tokens) {
@@ -9535,7 +9876,7 @@
 
             _previewOcMultiChipsTyped(pfx) {
                 const raw = document.getElementById('newOcMultiInput-' + pfx)?.value || '';
-                const yr  = parseInt(document.getElementById('newOcMultiYear-' + pfx)?.value) || (this.state?.biddingYear || new Date().getFullYear());
+                const yr  = parseInt(document.getElementById('newOcMultiYear-' + pfx)?.value) || (this.state?.biddingYearCorp || new Date().getFullYear());
                 const box = document.getElementById('newOcMultiPreview-' + pfx);
                 if (!box) return;
                 const tokens = raw.split(/[\s,;]+/).filter(Boolean);
@@ -9645,7 +9986,7 @@
 
             _ocWeekPreview(pfx) {
                 const w = parseInt(document.getElementById('newOcWeekNum-' + pfx)?.value);
-                const y = parseInt(document.getElementById('newOcWeekYear-' + pfx)?.value) || this.state.biddingYear;
+                const y = parseInt(document.getElementById('newOcWeekYear-' + pfx)?.value) || this.state.biddingYearCorp;
                 const el = document.getElementById('newOcWeekPreview-' + pfx);
                 if (!el) return;
                 if (w >= 1 && w <= 52) {
@@ -9688,7 +10029,7 @@
                 const weekInput = document.getElementById(`ocWeek-${empId}`)?.value;
                 const yearInput = document.getElementById(`ocWeekYear-${empId}`)?.value;
                 const weekNum = parseInt(weekInput);
-                const year = parseInt(yearInput) || this.state.biddingYear;
+                const year = parseInt(yearInput) || this.state.biddingYearCorp;
                 if (!weekNum || weekNum < 1 || weekNum > 53) { alert('Please enter a valid week number (1–53).'); return; }
                 const { from, to } = this.weekNumberToDateRange(weekNum, year);
                 this._applyOnCallRange(empId, from, to);
@@ -9698,7 +10039,7 @@
                 const empId = document.getElementById('newOcId')?.value?.trim();
                 if (!empId) { alert('Please enter an Operation Staff ID.'); return; }
                 const weekNum = parseInt(document.getElementById('newOcWeekNum')?.value);
-                const year = parseInt(document.getElementById('newOcWeekYear')?.value) || this.state.biddingYear;
+                const year = parseInt(document.getElementById('newOcWeekYear')?.value) || this.state.biddingYearCorp;
                 if (!weekNum || weekNum < 1 || weekNum > 53) { alert('Please enter a valid week number (1–53).'); return; }
                 const { from, to } = this.weekNumberToDateRange(weekNum, year);
                 this._applyOnCallRange(empId, from, to, true);
@@ -9720,7 +10061,7 @@
                 const empId = document.getElementById('newOcId')?.value?.trim();
                 if (!empId) { alert('Please enter an Operation Staff ID.'); return; }
                 const raw  = document.getElementById('newOcMultiWeekInput')?.value || '';
-                const year = parseInt(document.getElementById('newOcMultiWeekYear')?.value) || this.state.biddingYear;
+                const year = parseInt(document.getElementById('newOcMultiWeekYear')?.value) || this.state.biddingYearCorp;
                 if (!raw.trim()) { alert('Please enter at least one week number.'); return; }
                 const weeks = this._parseMultiWeekInput(raw, year);
                 if (!weeks.length) { alert('No valid weeks found. Example: 1-4, 10, 22-26'); return; }
@@ -9747,7 +10088,7 @@
 
             addOnCallMultiWeek(empId) {
                 const raw  = document.getElementById(`ocMultiWeekInput-${empId}`)?.value || '';
-                const year = parseInt(document.getElementById(`ocMultiWeekYear-${empId}`)?.value) || this.state.biddingYear;
+                const year = parseInt(document.getElementById(`ocMultiWeekYear-${empId}`)?.value) || this.state.biddingYearCorp;
                 if (!raw.trim()) { alert('Please enter at least one week number.'); return; }
                 const weeks = this._parseMultiWeekInput(raw, year);
                 if (!weeks.length) { alert('No valid weeks found. Example: 1-4, 10, 22-26'); return; }
@@ -9805,6 +10146,27 @@
                         setTimeout(() => this.updateSystemStatus('Ready'), 5000);
                     } else {
                         console.log('✅ Config (incl. on-call dates) saved to Supabase:', Object.keys(this.state.onCallDates || {}).length, 'staff entries');
+                    }
+
+                    // Corporate/GC settings save to their own dedicated table,
+                    // fully isolated from Ops/Maintenance (system_config_82)
+                    const { error: corpError } = await this.supabase
+                        .from('system_config')
+                        .upsert(
+                            {
+                                id: 1,
+                                tenant_id: this._tid(),
+                                bidding_deadline: this.state.biddingDeadlineCorp,
+                                bidding_year: this.state.biddingYearCorp,
+                                is_processed: this.state.isProcessedCorp,
+                                last_updated: new Date().toISOString()
+                            },
+                            { onConflict: 'id' }
+                        );
+                    if (corpError) {
+                        console.error('❌ Could not save Corporate/GC config to Supabase:', corpError.message);
+                    } else {
+                        console.log('✅ Corporate/GC config saved to system_config table');
                     }
                 } catch (e) {
                     console.warn('⚠️ Supabase config save error:', e.message);
@@ -11381,7 +11743,7 @@
                 const conflicts = this._hrCorpBidOverlaps();
 
                 // Chart data: monthly bidding overview (% submitted vs % not yet bid, cumulative by submission date) + participation split (pie)
-                const chartYear = this.state.biddingYear || new Date().getFullYear();
+                const chartYear = this.state.biddingYearCorp || new Date().getFullYear();
                 const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
                 const monthlySubmittedPct = [];
                 const monthlyNotBidPct = [];
