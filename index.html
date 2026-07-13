@@ -1412,7 +1412,8 @@
                         }
                     }
                     
-                    // Load bids from BOTH leave_requests and maint_leave_requests
+                    // Load bids from leave_requests (Ops), maint_leave_requests (Maintenance),
+                    // and corporate_leave_request (GC & Corporate Staff)
                     const _fetchBidTable = async (tableName) => {
                         let rows = [], pg = 0, more = true;
                         while (more) {
@@ -1431,12 +1432,13 @@
                         }
                         return rows;
                     };
-                    const [regularBids, maintBids] = await Promise.all([
+                    const [regularBids, maintBids, corporateBids] = await Promise.all([
                         _fetchBidTable('leave_requests'),
-                        _fetchBidTable('maint_leave_requests')
+                        _fetchBidTable('maint_leave_requests'),
+                        _fetchBidTable('corporate_leave_request')
                     ]);
-                    let allBids = [...regularBids, ...maintBids];
-                    console.log(`✅ Initial load: ${regularBids.length} regular + ${maintBids.length} maintenance bids`);
+                    let allBids = [...regularBids, ...maintBids, ...corporateBids];
+                    console.log(`✅ Initial load: ${regularBids.length} regular + ${maintBids.length} maintenance + ${corporateBids.length} corporate bids`);
                     
                     // Load system config
                     const { data: config, error: configError } = await this.supabase
@@ -1471,14 +1473,14 @@
                             department: emp.department || 'Unassigned',
                             gender: emp.gender || '',
                             nationality: emp.nationality || '',
-                            email: emp.email || ''
+                            email: emp.email || '',
+                            password: emp.password || ''
                         }));
                         
-                        // Set default passwords
+                        // Load passwords from Supabase (source of truth for cross-device sync).
+                        // Falls back to any existing local cache, then to employee ID as the default.
                         this.state.employees.forEach(emp => {
-                            if (!this.state.employeePasswords[emp.id]) {
-                                this.state.employeePasswords[emp.id] = emp.id;
-                            }
+                            this.state.employeePasswords[emp.id] = emp.password || this.state.employeePasswords[emp.id] || emp.id;
                         });
                         
                         console.log(`✅ Loaded ${this.state.employees.length} employees from Supabase (with pagination)`);
@@ -1496,6 +1498,7 @@
                             department:   bid.department || emp?.department || mEmp?.department || '',
                             position:     emp?.position  || mEmp?.position  || '',
                             slotType:     bid.slot_type || 'slotA',
+                            leaveType:    bid.leave_type || 'Annual Leave',
                             startDate:    bid.start_date,
                             endDate:      bid.end_date,
                             days:         bid.days_requested,
@@ -1854,34 +1857,49 @@
                     this.updateSystemStatus('Saving on-call dates...');
                     await this.saveOnCallDatesToSupabase();
 
-                    // ── 3. Save bids in batches of 500 ──
+                    // ── 3. Save bids in batches of 500, routed to the correct table per bid ──
                     if (this.state.bids.length > 0) {
                         const bidTotal = this.state.bids.length;
-                        const bidChunks = chunk(this.state.bids, 500);
                         this.updateSystemStatus(`Saving bids (0/${bidTotal})...`);
 
-                        for (let i = 0; i < bidChunks.length; i++) {
-                            const batch = bidChunks[i].map(bid => ({
-                                tenant_id: this._tid(),
-                                employee_id: bid.employeeId,
-                                employee_name: bid.employeeName || '',
-                                department: bid.department || '',
-                                start_date: bid.startDate,
-                                end_date: bid.endDate,
-                                days_requested: bid.days,
-                                status: 'pending',
-                                slot_type: bid.slotType,
-                                created_at: bid.timestamp || new Date().toISOString()
-                            }));
+                        // Group bids by destination table (Ops / Maintenance / Corporate)
+                        const bidsByTable = { leave_requests: [], maint_leave_requests: [], corporate_leave_request: [] };
+                        this.state.bids.forEach(bid => {
+                            const table = this._isMaintStaff(bid.employeeId, bid)
+                                ? 'maint_leave_requests'
+                                : this._isCorporateStaff(bid.employeeId, bid)
+                                    ? 'corporate_leave_request'
+                                    : 'leave_requests';
+                            bidsByTable[table].push(bid);
+                        });
 
-                            const { error } = await this.supabase
-                                .from('leave_requests')
-                                .upsert(batch, { onConflict: 'employee_id,slot_type,start_date' });
+                        let savedSoFar = 0;
+                        for (const [table, bidsForTable] of Object.entries(bidsByTable)) {
+                            if (bidsForTable.length === 0) continue;
+                            const bidChunks = chunk(bidsForTable, 500);
+                            for (let i = 0; i < bidChunks.length; i++) {
+                                const batch = bidChunks[i].map(bid => ({
+                                    tenant_id: this._tid(),
+                                    employee_id: bid.employeeId,
+                                    employee_name: bid.employeeName || '',
+                                    department: bid.department || '',
+                                    start_date: bid.startDate,
+                                    end_date: bid.endDate,
+                                    days_requested: bid.days,
+                                    status: 'pending',
+                                    slot_type: bid.slotType,
+                                    created_at: bid.timestamp || new Date().toISOString()
+                                }));
 
-                            if (error) throw new Error(`Bid batch ${i + 1} failed: ${error.message}`);
+                                const { error } = await this.supabase
+                                    .from(table)
+                                    .upsert(batch, { onConflict: 'employee_id,slot_type,start_date' });
 
-                            const saved = Math.min((i + 1) * 500, bidTotal);
-                            this.updateSystemStatus(`Saving bids (${saved}/${bidTotal})...`);
+                                if (error) throw new Error(`Bid batch failed [${table}]: ${error.message}`);
+
+                                savedSoFar += batch.length;
+                                this.updateSystemStatus(`Saving bids (${savedSoFar}/${bidTotal})...`);
+                            }
                         }
                     }
 
@@ -2408,6 +2426,9 @@
                         break;
                     case 'manualOverride':
                         this.renderManualOverrideView();
+                        break;
+                    case 'maintManualOverride':
+                        this.renderMaintManualOverrideView();
                         break;
                     case 'auditLog':
                         this.renderAuditLogView();
@@ -3646,7 +3667,7 @@
                     return;
                 }
                 const { error } = await this.supabase
-                    .from('leave_requests')
+                    .from('corporate_leave_request')
                     .delete()
                     .eq('tenant_id', this._tid())
                     .eq('employee_id', gcUser.id)
@@ -4093,7 +4114,7 @@
                     return;
                 }
                 const { error } = await this.supabase
-                    .from('leave_requests')
+                    .from('corporate_leave_request')
                     .delete()
                     .eq('tenant_id', this._tid())
                     .eq('employee_id', csUser.id)
@@ -5265,18 +5286,20 @@
                         return rows;
                     };
 
-                    // Fetch both regular AND maintenance bids in parallel
-                    const [regularRows, maintRows] = await Promise.all([
+                    // Fetch regular, maintenance, AND corporate (GC/CS) bids in parallel
+                    const [regularRows, maintRows, corporateRows] = await Promise.all([
                         fetchAllFromTable('leave_requests'),
-                        fetchAllFromTable('maint_leave_requests')
+                        fetchAllFromTable('maint_leave_requests'),
+                        fetchAllFromTable('corporate_leave_request')
                     ]);
 
-                    const allBids = [...regularRows, ...maintRows];
-                    console.log(`✅ Fetched ${regularRows.length} regular + ${maintRows.length} maintenance bids from Supabase`);
+                    const allBids = [...regularRows, ...maintRows, ...corporateRows];
+                    console.log(`✅ Fetched ${regularRows.length} regular + ${maintRows.length} maintenance + ${corporateRows.length} corporate bids from Supabase`);
 
                     this.state.bids = [
                         ...regularRows.map(b => this._mapRemoteBid(b, 'leave_requests')),
-                        ...maintRows.map(b => this._mapRemoteBid(b, 'maint_leave_requests'))
+                        ...maintRows.map(b => this._mapRemoteBid(b, 'maint_leave_requests')),
+                        ...corporateRows.map(b => this._mapRemoteBid(b, 'corporate_leave_request'))
                     ];
 
                     this.saveState();
@@ -5334,7 +5357,7 @@
             // Sourced from the corporate_staff_employees_rows.csv upload — any other
             // Corporate Staff records (added later / not on this list) remain grouped
             // under the general "GC & Corporate Staff" tab.
-            _HR_CORPORATE_IDS: ['1000027','1000052','1000060','1000072','1000081','1000092','1000095','1000104','1000123','1000129','1000160','1000167','1000181','1000215','1000228','1000278','1000285','1000307','1000399','1000442','1000516','1000547','1000565','1000604','1000617','1000664','1000675','1000743','1000769','1000775','1000784','1000804','1000834','1000847','1000945','1000956','1001236','1002247','1002280','1002438','1002885','1003687','1004522','1004831','1004962','1005101','1005263','1005708','1006476','1006806','1006807','1006869','1006894','1006895','1006912','1006938','1006959','1007062','1007063','1007064','1007088','1007113','1007114','1007115','1007116','1007117','1007122','1007134','1007135','1007151'],
+            _HR_CORPORATE_IDS: ['1000052','1000060','1000072','1000081','1000092','1000095','1000104','1000123','1000129','1000160','1000167','1000181','1000215','1000228','1000278','1000285','1000307','1000399','1000442','1000516','1000547','1000565','1000604','1000617','1000664','1000675','1000743','1000769','1000775','1000784','1000804','1000834','1000847','1000945','1000956','1001236','1002247','1002280','1002438','1002885','1003687','1004522','1004831','1004962','1005101','1005263','1005708','1006476','1006806','1006807','1006869','1006894','1006895','1006912','1006938','1006959','1007062','1007063','1007064','1007088','1007113','1007114','1007115','1007116','1007117','1007122','1007134','1007135','1007151'],
 
             _isHrCorporate(employeeId) {
                 // Returns true only for the specific staff IDs on the HR Corporate list
@@ -5351,6 +5374,31 @@
                 if (ids.length > 0) return ids.includes(employeeId);
                 // Last resort: check if any bid in state has this employeeId tagged as maint
                 return this.state.bids.some(b => b.employeeId === employeeId && b._sourceTable === 'maint_leave_requests');
+            },
+
+            // Returns true for Golden Command (GC) and Corporate Staff (CS) employee IDs —
+            // these route to the dedicated `corporate_leave_request` table, kept separate
+            // from Ops (`leave_requests`) and Maintenance (`maint_leave_requests`).
+            _isCorporateStaff(employeeId, bid) {
+                // Prefer the source table tag set at fetch time — reliable even when
+                // the GC/CS user lists are not loaded in the admin session
+                if (bid && bid._sourceTable) return bid._sourceTable === 'corporate_leave_request';
+                const gcIds = (this.state.goldenCommandUsers   || []).map(u => u.id);
+                const csIds = (this.state.corporateStaffUsers  || []).map(u => u.id);
+                if (gcIds.length > 0 || csIds.length > 0) {
+                    return gcIds.includes(employeeId) || csIds.includes(employeeId);
+                }
+                // Last resort: check if any bid in state has this employeeId tagged as corporate
+                return this.state.bids.some(b => b.employeeId === employeeId && b._sourceTable === 'corporate_leave_request');
+            },
+
+            // Central place that decides which Supabase table a bid belongs to,
+            // based on the acting user's userType. Used by every read/write path
+            // so the routing rule only has to be maintained in one spot.
+            _bidTableForUserType(userType) {
+                if (userType === 'maintenancestaff') return 'maint_leave_requests';
+                if (userType === 'goldencommand' || userType === 'corporatestaff') return 'corporate_leave_request';
+                return 'leave_requests';
             },
 
             _switchBidTab(tab) {
@@ -5518,7 +5566,11 @@
                 if (this.supabase) {
                     // ✅ FIX: Use the bid looked up above (before state removal), not a stale re-lookup.
                     // Also added .eq('tenant_id') for safe scoping, consistent with bulk-delete functions.
-                    const table = this._isMaintStaff(employeeId, bid) ? 'maint_leave_requests' : 'leave_requests';
+                    const table = this._isMaintStaff(employeeId, bid)
+                        ? 'maint_leave_requests'
+                        : this._isCorporateStaff(employeeId, bid)
+                            ? 'corporate_leave_request'
+                            : 'leave_requests';
                     const { error } = await this.supabase
                         .from(table)
                         .delete()
@@ -5595,8 +5647,18 @@
                             .eq('tenant_id', this._tid());
                         if (error) console.warn('⚠️ Supabase delete all maint error:', error.message);
                         else console.log('✅ All maintenance bids deleted');
+                    } else if (tabFilter === 'gccs' || tabFilter === 'hrcorp') {
+                        // GC, Corporate Staff, and HR Corporate all live in corporate_leave_request
+                        const idsToDelete = tabBids.map(b => b.employeeId);
+                        const { error } = await this.supabase
+                            .from('corporate_leave_request')
+                            .delete()
+                            .eq('tenant_id', this._tid())
+                            .in('employee_id', idsToDelete);
+                        if (error) console.warn(`⚠️ Supabase delete all [${tabFilter}] error:`, error.message);
+                        else console.log(`✅ All ${sectionName} bids deleted from corporate_leave_request`);
                     } else {
-                        // Employees and GC/CS both live in leave_requests
+                        // Ops employees live in leave_requests
                         // Delete only the specific employee IDs for this tab, scoped to this tenant
                         const idsToDelete = tabBids.map(b => b.employeeId);
                         const { error } = await this.supabase
@@ -5623,13 +5685,15 @@
                 this.saveState();
 
                 if (this.supabase) {
-                    const [r1, r2] = await Promise.all([
+                    const [r1, r2, r3] = await Promise.all([
                         this.supabase.from('leave_requests').delete().eq('tenant_id', this._tid()),
-                        this.supabase.from('maint_leave_requests').delete().eq('tenant_id', this._tid())
+                        this.supabase.from('maint_leave_requests').delete().eq('tenant_id', this._tid()),
+                        this.supabase.from('corporate_leave_request').delete().eq('tenant_id', this._tid())
                     ]);
                     if (r1.error) console.warn('⚠️ Supabase delete all error [leave_requests]:', r1.error.message);
                     if (r2.error) console.warn('⚠️ Supabase delete all error [maint_leave_requests]:', r2.error.message);
-                    if (!r1.error && !r2.error) console.log('✅ All bids deleted from both tables');
+                    if (r3.error) console.warn('⚠️ Supabase delete all error [corporate_leave_request]:', r3.error.message);
+                    if (!r1.error && !r2.error && !r3.error) console.log('✅ All bids deleted from all three tables');
                 }
 
                 this._liveUpdateAdminPanel();
@@ -5677,6 +5741,7 @@
                     position: this.state.employees.find(e => e.id === bid.employee_id)?.position ||
                         (this.state.maintenanceStaffUsers || []).find(e => e.id === bid.employee_id)?.position || '',
                     slotType: bid.slot_type || 'slotA',
+                    leaveType: bid.leave_type || 'Annual Leave',
                     startDate: bid.start_date,
                     endDate: bid.end_date,
                     days: bid.days_requested,
@@ -5723,6 +5788,9 @@
                     .on('postgres_changes',
                         { event: '*', schema: 'public', table: 'maint_leave_requests' },
                         payload => applyChange(payload, 'maint_leave_requests'))
+                    .on('postgres_changes',
+                        { event: '*', schema: 'public', table: 'corporate_leave_request' },
+                        payload => applyChange(payload, 'corporate_leave_request'))
                     .subscribe(status => {
                         console.log('🔌 Admin Realtime status:', status);
                         if (status === 'SUBSCRIBED') this._setAdminStatus('live');
@@ -5774,8 +5842,8 @@
                 this._lcRealtimeChannel = this.supabase
                     .channel('lc-tracker-bids')
                     .on('postgres_changes',
-                        { event: '*', schema: 'public', table: 'leave_requests' },
-                        payload => applyLcChange(payload, 'leave_requests'))
+                        { event: '*', schema: 'public', table: 'corporate_leave_request' },
+                        payload => applyLcChange(payload, 'corporate_leave_request'))
                     .on('postgres_changes',
                         { event: '*', schema: 'public', table: 'golden_command_users' },
                         () => { if (typeof window.lcRender === 'function') window.lcRender(); })
@@ -6033,6 +6101,11 @@
                                                 style="width:100%;padding:10px 16px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:0.85rem;cursor:pointer;"
                                                 onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'">
                                                 📋 View Maintenance Results
+                                            </button>
+                                            <button onclick="app.setActiveView('maintManualOverride')"
+                                                style="width:100%;padding:10px 16px;background:#ea580c;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:0.85rem;cursor:pointer;"
+                                                onmouseover="this.style.background='#c2410c'" onmouseout="this.style.background='#ea580c'">
+                                                ✏️ Manual Override Maintenance Results
                                             </button>
                                             <button onclick="app.exportMaintResults()"
                                                 style="width:100%;padding:10px 16px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:0.85rem;cursor:pointer;"
@@ -7983,10 +8056,10 @@
                     return false;
                 }
                 try {
-                    // Route maintenance staff to their own table
-                    const table = this.state.userType === 'maintenancestaff'
-                        ? 'maint_leave_requests'
-                        : 'leave_requests';
+                    // Route to the correct table based on the acting user's type:
+                    // employee/planner -> leave_requests, maintenancestaff -> maint_leave_requests,
+                    // goldencommand/corporatestaff -> corporate_leave_request
+                    const table = this._bidTableForUserType(this.state.userType);
 
                     const row = {
                         tenant_id: this._tid(),
@@ -8049,9 +8122,7 @@
                     this.writeAuditLog('BID_REMOVED', { employee_id: employeeId, slot_type: slotType, start_date: startDate });
                     return;
                 }
-                const table = this.state.userType === 'maintenancestaff'
-                    ? 'maint_leave_requests'
-                    : 'leave_requests';
+                const table = this._bidTableForUserType(this.state.userType);
                 const { error } = await this.supabase
                     .from(table)
                     .delete()
@@ -9285,6 +9356,125 @@
                 } catch(err) {
                     console.error(err);
                     const msg = document.getElementById('overrideMsg');
+                    if (msg) msg.innerHTML = `<div class="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">❌ Database save failed. Changes saved locally only.</div>`;
+                }
+            },
+
+            // ==================== MAINTENANCE MANUAL OVERRIDE ====================
+            renderMaintManualOverrideView() {
+                const content = document.getElementById('contentArea');
+                if (!this.state.isMaintProcessed || (this.state.maintResults || []).length === 0) {
+                    content.innerHTML = `
+                        <div class="max-w-2xl mx-auto bg-white rounded-xl shadow-xl p-8 text-center">
+                            <p class="text-2xl mb-4">⚠️</p>
+                            <p class="text-gray-600">No maintenance results to override. Process maintenance bids first.</p>
+                            <button onclick="app.setActiveView('admin')" class="mt-4 px-6 py-2 bg-blue-500 text-white rounded-lg">Go to Admin Panel</button>
+                        </div>`;
+                    return;
+                }
+
+                // Group maintenance results by employee
+                const empMap = {};
+                this.state.maintResults.forEach(r => {
+                    if (!empMap[r.employeeId]) empMap[r.employeeId] = [];
+                    empMap[r.employeeId].push(r);
+                });
+
+                content.innerHTML = `
+                    <div class="max-w-5xl mx-auto">
+                        <div class="bg-white rounded-xl shadow-xl p-6">
+                            <div class="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 class="text-2xl font-bold">✏️ Maintenance Manual Override</h2>
+                                    <p class="text-sm text-gray-500 mt-1">Edit any maintenance employee's assigned leave slots directly.</p>
+                                </div>
+                                <button onclick="app.setActiveView('dashboard')" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm">← Back</button>
+                            </div>
+                            <div id="maintOverrideMsg"></div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-gray-50 text-gray-600">
+                                        <tr>
+                                            <th class="p-3 text-left">Maintenance Staff</th>
+                                            <th class="p-3 text-left">Slot</th>
+                                            <th class="p-3 text-left">Slot Name</th>
+                                            <th class="p-3 text-left">Start Date</th>
+                                            <th class="p-3 text-left">End Date</th>
+                                            <th class="p-3 text-left">Days</th>
+                                            <th class="p-3 text-left">Type</th>
+                                            <th class="p-3 text-left">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${Object.entries(empMap).map(([empId, slots]) => {
+                                            const emp = (this.state.maintenanceStaffUsers || []).find(e => e.id === empId);
+                                            return slots.sort((a,b)=>(a.slotOrder||0)-(b.slotOrder||0)).map((r, i) => `
+                                                <tr class="border-b hover:bg-gray-50" id="maint-row-${empId}-${r.slotOrder}">
+                                                    ${i===0 ? `<td class="p-3 font-semibold" rowspan="${slots.length}">${emp?.name||r.employeeName||empId}<br><span class="text-xs text-gray-400">${empId}</span></td>` : ''}
+                                                    <td class="p-3 text-gray-500">Slot ${r.slotOrder}</td>
+                                                    <td class="p-3">
+                                                        <input type="text" class="border rounded px-2 py-1 w-28 text-xs" value="${r.slotName||''}" id="ov-maint-slotName-${empId}-${r.slotOrder}" />
+                                                    </td>
+                                                    <td class="p-3">
+                                                        <input type="date" class="border rounded px-2 py-1 text-xs" value="${r.startDate||''}" id="ov-maint-start-${empId}-${r.slotOrder}" />
+                                                    </td>
+                                                    <td class="p-3">
+                                                        <input type="date" class="border rounded px-2 py-1 text-xs" value="${r.endDate||''}" id="ov-maint-end-${empId}-${r.slotOrder}" />
+                                                    </td>
+                                                    <td class="p-3">
+                                                        <input type="number" class="border rounded px-2 py-1 w-16 text-xs" value="${r.days||0}" id="ov-maint-days-${empId}-${r.slotOrder}" min="1" max="60" />
+                                                    </td>
+                                                    <td class="p-3">
+                                                        <select class="border rounded px-2 py-1 text-xs" id="ov-maint-type-${empId}-${r.slotOrder}">
+                                                            <option value="Bid Awarded" ${r.type==='Bid Awarded'?'selected':''}>Bid Awarded</option>
+                                                            <option value="Auto-Assigned" ${r.type==='Auto-Assigned'?'selected':''}>Auto-Assigned</option>
+                                                            <option value="Manual Override" ${r.type==='Manual Override'?'selected':''}>Manual Override</option>
+                                                        </select>
+                                                    </td>
+                                                    <td class="p-3">
+                                                        <button onclick="app.saveMaintOverride('${empId}', ${r.slotOrder})" class="px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 font-semibold">Save</button>
+                                                    </td>
+                                                </tr>
+                                            `).join('');
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-6 flex gap-3">
+                                <button onclick="app.saveAllMaintOverrides()" class="px-6 py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600">💾 Save All Changes to Database</button>
+                                <button onclick="app.setActiveView('dashboard')" class="px-6 py-3 bg-gray-400 text-white rounded-lg font-semibold hover:bg-gray-500">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            saveMaintOverride(empId, slotOrder) {
+                const idx = this.state.maintResults.findIndex(r => r.employeeId === empId && r.slotOrder === slotOrder);
+                if (idx === -1) { alert('Result not found'); return; }
+                this.state.maintResults[idx].slotName  = document.getElementById(`ov-maint-slotName-${empId}-${slotOrder}`)?.value || this.state.maintResults[idx].slotName;
+                this.state.maintResults[idx].startDate = document.getElementById(`ov-maint-start-${empId}-${slotOrder}`)?.value || this.state.maintResults[idx].startDate;
+                this.state.maintResults[idx].endDate   = document.getElementById(`ov-maint-end-${empId}-${slotOrder}`)?.value   || this.state.maintResults[idx].endDate;
+                this.state.maintResults[idx].days      = parseInt(document.getElementById(`ov-maint-days-${empId}-${slotOrder}`)?.value) || this.state.maintResults[idx].days;
+                this.state.maintResults[idx].type      = document.getElementById(`ov-maint-type-${empId}-${slotOrder}`)?.value || this.state.maintResults[idx].type;
+                this.saveState();
+                const msg = document.getElementById('maintOverrideMsg');
+                if (msg) { msg.innerHTML = `<div class="mb-3 p-2 bg-green-50 border border-green-200 rounded text-green-700 text-sm">✅ Slot ${slotOrder} for ${(this.state.maintenanceStaffUsers || []).find(e=>e.id===empId)?.name||empId} updated locally. Click "Save All" to push to database.</div>`; }
+            },
+
+            async saveAllMaintOverrides() {
+                this.saveState();
+                this.writeAuditLog('MANUAL_OVERRIDE', { action: 'maintenance', total_results: this.state.maintResults.length });
+                try {
+                    if (this.supabase) {
+                        const { error } = await this.supabase.from('system_config_82').update({ maint_results: this.state.maintResults }).eq('id', 1);
+                        if (error) throw error;
+                    }
+                    const msg = document.getElementById('maintOverrideMsg');
+                    if (msg) msg.innerHTML = `<div class="mb-3 p-2 bg-green-50 border border-green-200 rounded text-green-700 text-sm">✅ All maintenance overrides saved to database successfully!</div>`;
+                } catch(err) {
+                    console.error(err);
+                    const msg = document.getElementById('maintOverrideMsg');
                     if (msg) msg.innerHTML = `<div class="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">❌ Database save failed. Changes saved locally only.</div>`;
                 }
             },
@@ -10826,9 +11016,13 @@
                 } else if (role === 'goldencommand') {
                     const u = (this.state.goldenCommandUsers || []).find(u => u.id === id);
                     if (u) u.password = newPwd;
+                    try { if (this.supabase) await this.supabase.from('golden_command_users').update({ password: newPwd }).eq('id', id); }
+                    catch (e) { console.warn('DB update failed:', e); }
                 } else if (role === 'corporatestaff') {
                     const u = (this.state.corporateStaffUsers || []).find(u => u.id === id);
                     if (u) u.password = newPwd;
+                    try { if (this.supabase) await this.supabase.from('corporate_staff_employees').update({ password: newPwd }).eq('id', id); }
+                    catch (e) { console.warn('DB update failed:', e); }
                 }
 
                 this.saveState();
@@ -11046,13 +11240,17 @@
                     '.lc-stitle{font-size:.67rem;color:rgba(30,60,100,.6);line-height:1.3;}',
                     '.lc-lcount{margin-top:3px;font-size:.63rem;font-weight:700;font-family:"Barlow Condensed",sans-serif;display:flex;align-items:center;gap:4px;}',
                     '.lc-lval{color:#ff6b6b;}.lc-llab{color:rgba(200,225,255,.38);text-transform:uppercase;letter-spacing:.08em;}',
+                    '.lc-sick-count{margin-top:1px;}',
+                    '.lc-lval-sick{color:#ffb74d;font-weight:700;}',
                     '.lc-leave-cells{display:flex;}',
                     '.lc-c{width:30px;height:42px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-right:1px solid rgba(100,180,255,.07);font-size:.65rem;font-weight:700;}',
                     '.lc-c.leave{background:rgba(255,107,107,.22);color:#ff8080;}',
                     '.lc-c.leave-start{background:rgba(255,107,107,.28);color:#ff8080;border-left:2px solid #ff6b6b;}',
+                    '.lc-c.leave-sick{background:rgba(255,183,77,.24);color:#ffb74d;}',
                     '.lc-c.wknd{background:rgba(100,140,200,.07);}',
                     '.lc-c.td-c{background:rgba(78,176,255,.06);}',
                     '.lc-c.leave.wknd{background:rgba(255,107,107,.14);}',
+                    '.lc-c.leave-sick.wknd{background:rgba(255,183,77,.15);}',
                     '.lc-month-band{display:flex;align-items:center;background:rgba(78,176,255,.08);border-right:1px solid rgba(100,180,255,.22);padding:0 8px;font-family:"Barlow Condensed",sans-serif;font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#4eb0ff;white-space:nowrap;}',
                     '.lc-legend{display:flex;gap:14px;align-items:center;padding:9px 22px;border-top:1px solid rgba(21,101,192,.1);background:#f0f7ff;font-size:.67rem;color:rgba(30,60,100,.5);flex-wrap:wrap;}',
                     '.lc-leg-item{display:flex;align-items:center;gap:5px;}',
@@ -11087,7 +11285,41 @@
                     '.lc-sf-preview.show{display:block;}',
                     '.lc-sf-row2{display:flex;gap:8px;margin-top:10px;align-items:center;}',
                     '.lc-sf-filebtn{font-size:.72rem;padding:6px 12px;border-radius:7px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);color:rgba(200,225,255,.7);cursor:pointer;font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.06em;}',
-                    '.lc-sf-filebtn:hover{background:rgba(255,255,255,.14);}'
+                    '.lc-sf-filebtn:hover{background:rgba(255,255,255,.14);}',
+                    '.lc-dc.ph{background:#6a1b9a;}',
+                    '.lc-dc.ph .dcn{color:rgba(255,255,255,.8);}',
+                    '.lc-c.ph{background:rgba(171,71,188,.18);}',
+                    '.lc-c.leave.ph{background:rgba(171,71,188,.30);color:#e1bee7;}',
+                    '.lc-year-nav{display:flex;align-items:center;gap:4px;margin-left:4px;padding-left:8px;border-left:1px solid rgba(255,255,255,.25);}',
+                    '.lc-year-btn{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;padding:5px 8px;border-radius:7px;cursor:pointer;font-size:.85rem;}',
+                    '.lc-year-btn:hover{background:rgba(255,255,255,.35);}',
+                    '.lc-year-label{font-family:"Barlow Condensed",sans-serif;font-size:.95rem;font-weight:700;min-width:44px;text-align:center;color:#fff;}',
+                    '.lc-ph-btn{font-family:"Barlow Condensed",sans-serif;font-size:.78rem;font-weight:700;letter-spacing:.08em;padding:6px 13px;border-radius:8px;border:1px solid rgba(206,147,216,.7);background:rgba(171,71,188,.22);color:#f3e5f5;cursor:pointer;transition:all .15s;}',
+                    '.lc-ph-btn:hover{background:rgba(171,71,188,.4);border-color:#f3e5f5;color:#fff;}',
+                    '#lcPhModal{display:none;position:fixed;inset:0;z-index:10000;background:rgba(10,20,40,.72);align-items:center;justify-content:center;}',
+                    '#lcPhModal.open{display:flex;}',
+                    '#lcPhBox{background:#0d1b2e;border:1px solid rgba(171,71,188,.35);border-radius:14px;padding:26px 28px;width:480px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.7);color:#d8eaf7;font-family:Barlow,sans-serif;}',
+                    '#lcPhBox h3{font-family:"Barlow Condensed",sans-serif;font-size:1.15rem;font-weight:800;letter-spacing:.08em;color:#ce93d8;margin-bottom:4px;}',
+                    '#lcPhBox p.lc-ph-sub{font-size:.73rem;color:rgba(200,225,255,.45);margin-bottom:14px;line-height:1.5;}',
+                    '.lc-ph-form{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end;}',
+                    '.lc-ph-form label{font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:rgba(200,225,255,.5);display:block;margin-bottom:4px;}',
+                    '.lc-ph-form input[type=date],.lc-ph-form input[type=text]{background:rgba(255,255,255,.06);border:1px solid rgba(171,71,188,.3);border-radius:8px;color:#d8eaf7;font-size:.78rem;padding:7px 9px;outline:none;}',
+                    '.lc-ph-form input:focus{border-color:#ce93d8;}',
+                    '.lc-ph-name-input{width:170px;}',
+                    '.lc-ph-add{font-family:"Barlow Condensed",sans-serif;font-size:.8rem;font-weight:700;padding:8px 16px;border-radius:8px;background:#6a1b9a;border:1px solid #ce93d8;color:#fff;cursor:pointer;}',
+                    '.lc-ph-add:hover{background:#7b1fa2;}',
+                    '.lc-ph-list{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;}',
+                    '.lc-ph-row{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border:1px solid rgba(171,71,188,.15);border-radius:8px;padding:8px 12px;gap:8px;}',
+                    '.lc-ph-row .lc-ph-date{font-weight:700;color:#ce93d8;font-size:.78rem;min-width:88px;}',
+                    '.lc-ph-row .lc-ph-name{font-size:.78rem;color:rgba(216,234,247,.8);flex:1;}',
+                    '.lc-ph-del{background:rgba(255,107,107,.15);border:1px solid rgba(255,107,107,.4);color:#ff8080;border-radius:6px;padding:4px 9px;font-size:.7rem;cursor:pointer;}',
+                    '.lc-ph-del:hover{background:rgba(255,107,107,.3);}',
+                    '.lc-ph-empty{font-size:.75rem;color:rgba(200,225,255,.35);text-align:center;padding:16px;}',
+                    '.lc-ph-status{font-size:.7rem;margin-bottom:10px;min-height:14px;}',
+                    '.lc-ph-status.ok{color:#2ecc9a;}',
+                    '.lc-ph-status.err{color:#ff6b6b;}',
+                    '.lc-ph-close{margin-top:16px;font-family:"Barlow Condensed",sans-serif;font-size:.78rem;font-weight:600;padding:8px 14px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:rgba(200,225,255,.6);cursor:pointer;}',
+                    '.lc-ph-close:hover{background:rgba(255,255,255,.12);}'
                 ].join('\n');
 
                 var lcHTML = '<div id="lcDash">'
@@ -11095,7 +11327,7 @@
                     + '<div id="lcTopbar">'
                     +   '<div style="display:flex;align-items:center;gap:10px;">'
                     +     '<div class="lc-logo">FLOW <span>METRO</span></div>'
-                    +     '<div class="lc-badge-yr">GC &amp; CS Leave Tracker 2026</div>'
+                    +     '<div class="lc-badge-yr" id="lcYearBadge">GC &amp; CS Leave Tracker</div>'
                     +     '<span class="lc-live-badge" id="lcLiveBadge">&#9679; LIVE</span>'
                     +   '</div>'
                     +   '<div class="lc-tabs">'
@@ -11109,22 +11341,44 @@
                     +       '<div class="lc-mnav-label" id="lcMonthLabel">April 2026</div>'
                     +       '<button class="lc-mnav-btn" onclick="lcNextMonth()">&#8250;</button>'
                     +       '<button class="lc-mnav-btn" onclick="lcShowAll()" style="font-size:.72rem;padding:4px 8px;">Full Year</button>'
+                    +       '<div class="lc-year-nav">'
+                    +         '<button class="lc-year-btn" onclick="lcPrevYear()" title="Previous year">&#8249;&#8249;</button>'
+                    +         '<div class="lc-year-label" id="lcYearLabel">2026</div>'
+                    +         '<button class="lc-year-btn" onclick="lcNextYear()" title="Next year">&#8250;&#8250;</button>'
+                    +       '</div>'
                     +     '</div>'
                     +     '<div class="lc-search"><input type="text" id="lcSearch" placeholder="Search staff..." oninput="lcFilterStaff(this.value)"></div>'
                     +     '<button class="lc-refresh-btn" onclick="lcRefresh()">&#8635; Refresh</button>'
                     +     '<button class="lc-sf-btn" onclick="lcOpenSfSync()">&#8645; SF Sync</button>'
+                    +     '<button class="lc-ph-btn" onclick="lcOpenPhModal()">&#127881; Public Holidays</button>'
                     +     '<button class="lc-export-btn" onclick="lcExportCSV()">&#11015; CSV</button>'
                     +   '</div>'
                     + '</div>'
                     + '<div class="lc-stats" id="lcStats"></div>'
                     + '<div id="lcGrid"></div>'
                     + '<div class="lc-legend">'
-                    +   '<div class="lc-leg-item"><div class="lc-leg-sw" style="background:rgba(255,107,107,.22);border:1px solid #ff6b6b;"></div>Leave / Absent</div>'
+                    +   '<div class="lc-leg-item"><div class="lc-leg-sw" style="background:rgba(255,107,107,.22);border:1px solid #ff6b6b;"></div>A &mdash; Annual Leave</div>'
+                    +   '<div class="lc-leg-item"><div class="lc-leg-sw" style="background:rgba(255,183,77,.24);border:1px solid #ffb74d;"></div>SL &mdash; Sick Leave</div>'
                     +   '<div class="lc-leg-item"><div class="lc-leg-sw" style="background:rgba(100,140,200,.1);border:1px solid rgba(100,140,200,.2);"></div>Fri / Sat</div>'
+                    +   '<div class="lc-leg-item"><div class="lc-leg-sw" style="background:rgba(171,71,188,.18);border:1px solid #ab47bc;"></div>Public Holiday</div>'
                     +   '<div class="lc-leg-item"><div class="lc-leg-sw" style="background:rgba(78,176,255,.08);border:1px solid #4eb0ff;"></div>Today</div>'
-                    +   '<div style="margin-left:auto;font-size:.62rem;">Connected to Admin &#8250; Bid Details &#8250; GC &amp; Corporate Staff</div>'
+                    +   '<div style="margin-left:auto;font-size:.62rem;">Leave days shown exclude Fri/Sat &amp; public holidays &middot; Connected to Admin &#8250; Bid Details &#8250; GC &amp; Corporate Staff</div>'
                     + '</div>'
                     + '<div id="lcTooltip"></div>'
+                    + '<div id="lcPhModal">'
+                    +   '<div id="lcPhBox">'
+                    +     '<h3>&#127881; Public Holiday Configuration</h3>'
+                    +     '<p class="lc-ph-sub">Dates added here are excluded from leave day totals for every staff member, in addition to Fridays and Saturdays. Holidays apply to whichever year they fall in.</p>'
+                    +     '<div class="lc-ph-form">'
+                    +       '<div><label>Date</label><input type="date" id="lcPhDateInput"></div>'
+                    +       '<div><label>Name (optional)</label><input type="text" id="lcPhNameInput" class="lc-ph-name-input" placeholder="e.g. National Day"></div>'
+                    +       '<button class="lc-ph-add" onclick="lcAddPublicHoliday()">+ Add</button>'
+                    +     '</div>'
+                    +     '<div class="lc-ph-status" id="lcPhStatus"></div>'
+                    +     '<div class="lc-ph-list" id="lcPhList"></div>'
+                    +     '<button class="lc-ph-close" onclick="lcClosePhModal()">Close</button>'
+                    +   '</div>'
+                    + '</div>'
                     + '<div id="lcSfModal">'
                     +   '<div id="lcSfBox">'
                     +     '<h3>&#8645; SAP SuccessFactors &mdash; Leave Sync</h3>'
@@ -11154,27 +11408,214 @@
 
                 var lcViewMode = 'month';
                 var lcMonth    = new Date().getMonth();
+                var lcYear     = self.state.biddingYear || new Date().getFullYear();
                 var lcDeptFilter = 'all';
                 var lcQuery    = '';
                 var lcToday    = new Date();
                 var lcTodayStr = lcToday.getFullYear() + '-' + String(lcToday.getMonth()+1).padStart(2,'0') + '-' + String(lcToday.getDate()).padStart(2,'0');
 
+                // ── Public Holiday configuration ────────────────────────
+                // Stored as an array of {date:'YYYY-MM-DD', name} objects.
+                // Cached in localStorage and (if available) synced to a
+                // Supabase table called `public_holidays` (columns: id,
+                // tenant_id, date, name, created_at). If that table doesn't
+                // exist yet, the dashboard silently falls back to the
+                // localStorage-only copy so nothing breaks.
+                var lcPublicHolidays = [];
+                var lcPhSet = new Set();
+
+                function lcRebuildPhSet() {
+                    lcPhSet = new Set(lcPublicHolidays.map(function(h) { return h.date; }));
+                }
+                function lcIsWE(dt) { var d = dt.getDay(); return d === 5 || d === 6; }
+                function lcIsPH(dt) { return lcPhSet.has(lcDK(dt)); }
+
                 function lcDK(dt) {
                     return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
                 }
-                function lcIsWE(dt) { var d = dt.getDay(); return d === 5 || d === 6; }
+
+                // Normalise a raw SF/SAP "Absences" value into the two-letter
+                // dashboard code shown on the calendar: A = Annual Leave, SL = Sick Leave.
+                // Anything not clearly identifiable as sick defaults to Annual so existing
+                // records without a leave_type (pre-dating this feature) keep showing 'A'.
+                function lcAbsenceCode(rawType) {
+                    var t = (rawType || '').toString().trim().toLowerCase();
+                    if (!t) return 'A';
+                    if (t === 'sl' || t.indexOf('sick') > -1) return 'SL';
+                    return 'A';
+                }
+
+                function lcLoadPhLocal() {
+                    try {
+                        var raw = localStorage.getItem('lcPublicHolidays');
+                        lcPublicHolidays = raw ? JSON.parse(raw) : [];
+                    } catch(e) { lcPublicHolidays = []; }
+                    lcRebuildPhSet();
+                }
+                function lcSavePhLocal() {
+                    try { localStorage.setItem('lcPublicHolidays', JSON.stringify(lcPublicHolidays)); } catch(e) {}
+                }
+                async function lcLoadPublicHolidays() {
+                    lcLoadPhLocal();
+                    if (self.supabase) {
+                        try {
+                            var { data, error } = await self.supabase
+                                .from('public_holidays')
+                                .select('date, name')
+                                .eq('tenant_id', self._tid())
+                                .order('date', { ascending: true });
+                            if (error) {
+                                console.warn('Public holidays: Supabase select returned an error, keeping local cache', error);
+                            } else if (data && data.length > 0) {
+                                // Supabase has rows — trust it as the source of truth.
+                                lcPublicHolidays = data.map(function(r) { return { date: r.date, name: r.name || '' }; });
+                                lcSavePhLocal();
+                            } else if (data && data.length === 0 && lcPublicHolidays.length > 0) {
+                                // Supabase came back empty but we already have entries locally.
+                                // This almost always means earlier inserts never actually reached
+                                // Supabase (missing table / RLS policy / tenant mismatch), NOT that
+                                // the holidays were intentionally deleted. Keep the local cache and
+                                // try to re-push it so future loads stay in sync.
+                                console.warn('Public holidays: Supabase returned 0 rows but local cache has ' + lcPublicHolidays.length + ' — keeping local cache and re-syncing to Supabase.');
+                                for (const h of lcPublicHolidays) {
+                                    try {
+                                        await self.supabase.from('public_holidays').insert({
+                                            tenant_id: self._tid(), date: h.date, name: h.name
+                                        });
+                                    } catch(e2) { console.error('Public holidays: re-sync insert failed for', h.date, e2); }
+                                }
+                            }
+                        } catch(e) { console.warn('Public holidays: Supabase load failed, using local cache', e); }
+                    }
+                    lcRebuildPhSet();
+                }
+                window.lcAddPublicHoliday = async function() {
+                    var dateEl = document.getElementById('lcPhDateInput');
+                    var nameEl = document.getElementById('lcPhNameInput');
+                    var statusEl = document.getElementById('lcPhStatus');
+                    var date = dateEl ? dateEl.value : '';
+                    var name = nameEl ? nameEl.value.trim() : '';
+                    if (!date) {
+                        if (statusEl) { statusEl.textContent = 'Please pick a date first.'; statusEl.className = 'lc-ph-status err'; }
+                        return;
+                    }
+                    if (lcPhSet.has(date)) {
+                        if (statusEl) { statusEl.textContent = 'That date is already configured.'; statusEl.className = 'lc-ph-status err'; }
+                        return;
+                    }
+                    lcPublicHolidays.push({ date: date, name: name });
+                    lcPublicHolidays.sort(function(a,b) { return a.date.localeCompare(b.date); });
+                    lcRebuildPhSet();
+                    lcSavePhLocal();
+                    if (dateEl) dateEl.value = '';
+                    if (nameEl) nameEl.value = '';
+                    if (statusEl) { statusEl.textContent = 'Added ' + date + '.'; statusEl.className = 'lc-ph-status ok'; }
+                    lcRenderPhList();
+                    lcRender();
+                    if (self.supabase) {
+                        try {
+                            var { error: insErr } = await self.supabase.from('public_holidays').insert({
+                                tenant_id: self._tid(), date: date, name: name
+                            });
+                            if (insErr) {
+                                console.error('Public holidays: Supabase insert failed (saved locally only)', insErr);
+                                if (statusEl) { statusEl.textContent = 'Added ' + date + ' locally, but cloud sync failed (' + (insErr.message || 'see console') + '). It may not survive a full cache clear.'; statusEl.className = 'lc-ph-status err'; }
+                            }
+                        } catch(e) { console.error('Public holidays: Supabase insert failed (saved locally only)', e); }
+                    }
+                };
+                window.lcDeletePublicHoliday = async function(date) {
+                    lcPublicHolidays = lcPublicHolidays.filter(function(h) { return h.date !== date; });
+                    lcRebuildPhSet();
+                    lcSavePhLocal();
+                    lcRenderPhList();
+                    lcRender();
+                    if (self.supabase) {
+                        try {
+                            await self.supabase.from('public_holidays').delete()
+                                .eq('tenant_id', self._tid()).eq('date', date);
+                        } catch(e) { console.warn('Public holidays: Supabase delete failed (using local cache only)', e); }
+                    }
+                };
+                function lcRenderPhList() {
+                    var listEl = document.getElementById('lcPhList');
+                    if (!listEl) return;
+                    if (!lcPublicHolidays.length) {
+                        listEl.innerHTML = '<div class="lc-ph-empty">No public holidays configured yet.</div>';
+                        return;
+                    }
+                    listEl.innerHTML = lcPublicHolidays.map(function(h) {
+                        return '<div class="lc-ph-row">'
+                             + '<span class="lc-ph-date">' + h.date + '</span>'
+                             + '<span class="lc-ph-name">' + (h.name || '&mdash;') + '</span>'
+                             + '<button class="lc-ph-del" onclick="lcDeletePublicHoliday(\'' + h.date + '\')">Remove</button>'
+                             + '</div>';
+                    }).join('');
+                }
+                window.lcOpenPhModal = function() {
+                    lcRenderPhList();
+                    var statusEl = document.getElementById('lcPhStatus');
+                    if (statusEl) { statusEl.textContent = ''; statusEl.className = 'lc-ph-status'; }
+                    var modal = document.getElementById('lcPhModal');
+                    if (modal) modal.classList.add('open');
+                };
+                window.lcClosePhModal = function() {
+                    var modal = document.getElementById('lcPhModal');
+                    if (modal) modal.classList.remove('open');
+                };
+
+                // ── Working-day helpers ─────────────────────────────────
+                // A day counts toward leave consumed only if it is NOT a
+                // weekend (Fri/Sat) and NOT a configured public holiday.
+                function lcIsWorkingDay(dt) { return !lcIsWE(dt) && !lcIsPH(dt); }
+
+                // Count working days for a bid's date range that fall
+                // within [winStart, winEnd] (inclusive). Used for both the
+                // full-year total and the current month view.
+                function lcWorkingDaysInWindow(bid, winStart, winEnd) {
+                    if (!bid || !bid.startDate || !winStart || !winEnd) return 0;
+                    var bs = new Date(bid.startDate + 'T00:00:00');
+                    var be = bid.endDate ? new Date(bid.endDate + 'T00:00:00') : bs;
+                    var overlapStart = bs < winStart ? winStart : bs;
+                    var overlapEnd   = be > winEnd   ? winEnd   : be;
+                    if (overlapStart > overlapEnd) return 0;
+                    var count = 0;
+                    var cur = new Date(overlapStart);
+                    while (cur <= overlapEnd) {
+                        if (lcIsWorkingDay(cur)) count++;
+                        cur.setDate(cur.getDate() + 1);
+                    }
+                    return count;
+                }
+
+                // Counts each calendar date at most once per employee (using the
+                // already-deduped leaveCodeByDate map) and splits the total into
+                // Annual vs Sick working days within the given window. This avoids
+                // double counting when two overlapping/duplicate leave records
+                // (e.g. a stale test row plus a real SF-synced row) cover the same date.
+                function lcCountDaysByCode(staffEntry, winStart, winEnd) {
+                    var annual = 0, sick = 0;
+                    var byDate = staffEntry.leaveCodeByDate || {};
+                    Object.keys(byDate).forEach(function(dk) {
+                        var dt = new Date(dk + 'T00:00:00');
+                        if (dt < winStart || dt > winEnd) return;
+                        if (!lcIsWorkingDay(dt)) return;
+                        if (byDate[dk] === 'SL') sick++; else annual++;
+                    });
+                    return { annual: annual, sick: sick };
+                }
 
                 function lcGetDates() {
                     if (lcViewMode === 'full') {
                         var r = [];
                         for (var m = 0; m < 12; m++) {
-                            var daysInM = new Date(2026, m+1, 0).getDate();
-                            for (var d = 1; d <= daysInM; d++) r.push(new Date(2026, m, d));
+                            var daysInM = new Date(lcYear, m+1, 0).getDate();
+                            for (var d = 1; d <= daysInM; d++) r.push(new Date(lcYear, m, d));
                         }
                         return r;
                     }
-                    var dIM2 = new Date(2026, lcMonth+1, 0).getDate(), r2 = [];
-                    for (var d2 = 1; d2 <= dIM2; d2++) r2.push(new Date(2026, lcMonth, d2));
+                    var dIM2 = new Date(lcYear, lcMonth+1, 0).getDate(), r2 = [];
+                    for (var d2 = 1; d2 <= dIM2; d2++) r2.push(new Date(lcYear, lcMonth, d2));
                     return r2;
                 }
 
@@ -11188,11 +11629,13 @@
                     var gccsIds = gcIds.concat(csIds);
 
                     // Only include the specific staff from the approved Excel list
-                    var ALLOWED_IDS = ['1000888','1000008','1000027','1000124','1001118','1002997','1003591','1003592','1003752','1006024','1006939','1007066','10015','10020','1000555','1000136','1000225','1000352','1000759','1000043','1000830','1000284','1000330','1000231','1000238','1005385','1007071','1006467','1007071'];
+                    var ALLOWED_IDS = ['1000888','1000008','1000027','1000124','1002536','10110','1001118','1002997','1003591','1003592','1003752','1006024','1006939','1007066','10015','10020','1000555','1000136','1000225','1000352','1000759','1000043','1000830','1000284','1000330','1000231','1000238','1005385','1007071','1006467','1007071'];
 
                     // Canonical job titles from approved staff list
                     var STAFF_TITLES = {
                         '1000888': 'Project Director',
+                        '10110': 'TSM L456 Engineering Director',
+                        '1002536': 'TSM L3 Engineering Manager',
                         '1000008': 'Senior Executive Finance Director',
                         '1000027': 'Senior Executive Human Resource Director',
                         '1000124': 'Senior Executive Director Stakeholder & Communication',
@@ -11225,6 +11668,12 @@
                     // Filter to GC/CS AND in allowed list
                     var gccs = bids.filter(function(b) { return gccsIds.indexOf(b.employeeId) > -1 && ALLOWED_IDS.indexOf(b.employeeId) > -1; });
 
+                    // Full-year window for the currently selected lcYear, used to
+                    // compute each bid's working-day contribution (excludes
+                    // Fri/Sat weekends and configured public holidays).
+                    var lcYearStart = new Date(lcYear, 0, 1);
+                    var lcYearEnd   = new Date(lcYear, 11, 31);
+
                     // Build per-staff map
                     var staffMap = {};
                     gccs.forEach(function(bid) {
@@ -11238,24 +11687,40 @@
                                 group: isGC ? 'gc' : 'cs',
                                 dept: isGC ? 'Golden Command' : 'Corporate Staff',
                                 leaveSet: new Set(),
+                                leaveCodeByDate: {},
                                 bids: [],
-                                totalDays: 0
+                                totalDays: 0,
+                                sickDays: 0
                             };
                         }
                         // Expand bid date range into individual days (for calendar cell highlighting only)
                         if (bid.startDate && bid.endDate) {
                             var cur = new Date(bid.startDate + 'T00:00:00');
                             var end = new Date(bid.endDate + 'T00:00:00');
+                            var absCode = lcAbsenceCode(bid.leaveType);
                             while (cur <= end) {
                                 staffMap[id].leaveSet.add(lcDK(cur));
+                                staffMap[id].leaveCodeByDate[lcDK(cur)] = absCode;
                                 cur.setDate(cur.getDate() + 1);
                             }
                         } else if (bid.startDate) {
                             staffMap[id].leaveSet.add(bid.startDate);
+                            staffMap[id].leaveCodeByDate[bid.startDate] = lcAbsenceCode(bid.leaveType);
                         }
-                        // Store raw bid and accumulate totalDays from bid.days (not leaveSet.size)
+                        // Store raw bid for month-view lookups. Totals are computed
+                        // AFTER this loop, once per staff, from the deduped date map
+                        // (see below) so overlapping/duplicate records for the same
+                        // date can't inflate the count.
                         staffMap[id].bids.push(bid);
-                        staffMap[id].totalDays += (bid.days || 0);
+                    });
+
+                    // Compute full-year Annual vs Sick totals per staff from the
+                    // deduped leaveCodeByDate map (each date counts once, even if
+                    // multiple bids happen to cover it).
+                    Object.keys(staffMap).forEach(function(id) {
+                        var counts = lcCountDaysByCode(staffMap[id], lcYearStart, lcYearEnd);
+                        staffMap[id].totalDays = counts.annual;
+                        staffMap[id].sickDays  = counts.sick;
                     });
 
                     var staff = Object.values(staffMap);
@@ -11283,29 +11748,23 @@
                 function lcBuildStats(staff, dates) {
                     var monthStart = dates.length ? dates[0] : null;
                     var monthEnd   = dates.length ? dates[dates.length - 1] : null;
-                    var totalLD = staff.reduce(function(a, s) {
-                        if (lcViewMode === 'full') return a + s.totalDays;
-                        // Proportional bid.days overlap for month view
-                        var mDays = 0;
-                        (s.bids || []).forEach(function(bid) {
-                            if (!bid.startDate || !monthStart) return;
-                            var bs = new Date(bid.startDate + 'T00:00:00');
-                            var be = bid.endDate ? new Date(bid.endDate + 'T00:00:00') : bs;
-                            var overlapStart = bs < monthStart ? monthStart : bs;
-                            var overlapEnd   = be > monthEnd   ? monthEnd   : be;
-                            if (overlapStart > overlapEnd) return;
-                            var totalCalDays   = Math.round((be - bs) / 86400000) + 1;
-                            var overlapCalDays = Math.round((overlapEnd - overlapStart) / 86400000) + 1;
-                            var proportion = totalCalDays > 0 ? overlapCalDays / totalCalDays : 0;
-                            mDays += Math.round((bid.days || 0) * proportion);
-                        });
-                        return a + mDays;
-                    }, 0);
+                    var totalLD = 0, totalSick = 0;
+                    staff.forEach(function(s) {
+                        if (lcViewMode === 'full') {
+                            totalLD   += s.totalDays;
+                            totalSick += s.sickDays;
+                        } else if (monthStart) {
+                            var counts = lcCountDaysByCode(s, monthStart, monthEnd);
+                            totalLD   += counts.annual;
+                            totalSick += counts.sick;
+                        }
+                    });
                     var onToday = staff.filter(function(s) { return s.leaveSet.has(lcTodayStr); }).length;
                     var gcCount = staff.filter(function(s) { return s.group === 'gc'; }).length;
                     var csCount = staff.filter(function(s) { return s.group === 'cs'; }).length;
                     return '<div class="lc-stat"><div class="sv sv-blue">' + staff.length + '</div><div class="sl">Staff on Leave</div></div>'
-                         + '<div class="lc-stat"><div class="sv sv-red">' + totalLD + '</div><div class="sl">Leave Days (' + (lcViewMode === 'full' ? 'Full Year' : 'Month') + ')</div></div>'
+                         + '<div class="lc-stat"><div class="sv sv-red">' + totalLD + '</div><div class="sl">Annual Leave Days (' + (lcViewMode === 'full' ? 'Full Year' : 'Month') + ')</div></div>'
+                         + '<div class="lc-stat"><div class="sv sv-amber">' + totalSick + '</div><div class="sl">Sick Leave Days (' + (lcViewMode === 'full' ? 'Full Year' : 'Month') + ')</div></div>'
                          + '<div class="lc-stat"><div class="sv ' + (onToday > 0 ? 'sv-red' : 'sv-green') + '">' + onToday + '</div><div class="sl">On Leave Today</div></div>'
                          + '<div class="lc-stat"><div class="sv sv-amber">' + gcCount + '</div><div class="sl">GC Staff</div></div>'
                          + '<div class="lc-stat"><div class="sv sv-blue">' + csCount + '</div><div class="sl">CS Staff</div></div>';
@@ -11313,8 +11772,8 @@
 
                 function lcBuildDateCells(dates) {
                     return dates.map(function(d) {
-                        var dk = lcDK(d), we = lcIsWE(d), td = dk === lcTodayStr;
-                        var cls = 'lc-dc' + (we ? ' wknd' : '') + (td ? ' td-col' : '');
+                        var dk = lcDK(d), we = lcIsWE(d), ph = lcIsPH(d), td = dk === lcTodayStr;
+                        var cls = 'lc-dc' + (ph ? ' ph' : (we ? ' wknd' : '')) + (td ? ' td-col' : '');
                         return '<div class="' + cls + '"><div class="dcd">' + LC_DAYS[d.getDay()].slice(0,2) + '</div><div class="dcn">' + d.getDate() + '</div></div>';
                     }).join('');
                 }
@@ -11324,7 +11783,7 @@
                     dates.forEach(function(d, i) {
                         var m = d.getMonth();
                         if (m !== cur) {
-                            var dIM = new Date(2026, m+1, 0).getDate();
+                            var dIM = new Date(lcYear, m+1, 0).getDate();
                             var w = Math.min(dIM, dates.length - i);
                             html += '<div class="lc-month-band" style="width:' + (w*30) + 'px;">' + LC_MONTHS[m].slice(0,3).toUpperCase() + '</div>';
                             cur = m;
@@ -11351,39 +11810,40 @@
                               + '</div>'
                               + '</div>';
                         members.forEach(function(s) {
-                            // Compute days-in-view from bid.days proportionally (avoids weekend inflation)
-                            var leaveInView;
+                            // Compute days-in-view as exact, deduped working days
+                            // (excludes Fri/Sat weekends and configured public
+                            // holidays), split Annual vs Sick.
+                            var leaveInView, sickInView;
                             if (lcViewMode === 'full') {
                                 leaveInView = s.totalDays;
+                                sickInView  = s.sickDays;
                             } else {
                                 var monthStart = dates.length ? dates[0] : null;
                                 var monthEnd   = dates.length ? dates[dates.length - 1] : null;
-                                leaveInView = 0;
                                 if (monthStart && monthEnd) {
-                                    (s.bids || []).forEach(function(bid) {
-                                        if (!bid.startDate) return;
-                                        var bs = new Date(bid.startDate + 'T00:00:00');
-                                        var be = bid.endDate ? new Date(bid.endDate + 'T00:00:00') : bs;
-                                        var overlapStart = bs < monthStart ? monthStart : bs;
-                                        var overlapEnd   = be > monthEnd   ? monthEnd   : be;
-                                        if (overlapStart > overlapEnd) return;
-                                        var totalCalDays  = Math.round((be - bs) / 86400000) + 1;
-                                        var overlapCalDays = Math.round((overlapEnd - overlapStart) / 86400000) + 1;
-                                        var proportion = totalCalDays > 0 ? overlapCalDays / totalCalDays : 0;
-                                        leaveInView += Math.round((bid.days || 0) * proportion);
-                                    });
+                                    var counts = lcCountDaysByCode(s, monthStart, monthEnd);
+                                    leaveInView = counts.annual;
+                                    sickInView  = counts.sick;
+                                } else {
+                                    leaveInView = 0; sickInView = 0;
                                 }
                             }
                             var cells = dates.map(function(d) {
-                                var dk = lcDK(d), lv = s.leaveSet.has(dk), we = lcIsWE(d), td = dk === lcTodayStr;
-                                var cls = 'lc-c' + (lv ? ' leave' : '') + (we ? ' wknd' : '') + (td ? ' td-c' : '');
-                                return '<div class="' + cls + '" data-date="' + dk + '" data-name="' + s.name + '" data-leave="' + lv + '">' + (lv ? 'A' : '') + '</div>';
+                                var dk = lcDK(d), lv = s.leaveSet.has(dk), we = lcIsWE(d), ph = lcIsPH(d), td = dk === lcTodayStr;
+                                var code = lv ? (s.leaveCodeByDate[dk] || 'A') : '';
+                                var cls = 'lc-c' + (lv ? ' leave' : '') + (code === 'SL' ? ' leave-sick' : '') + (ph ? ' ph' : (we ? ' wknd' : '')) + (td ? ' td-c' : '');
+                                return '<div class="' + cls + '" data-date="' + dk + '" data-name="' + s.name + '" data-leave="' + lv + '">' + code + '</div>';
                             }).join('');
                             var yrNote = (s.totalDays !== leaveInView) ? '<span style="color:rgba(200,225,255,.3);font-size:.58rem;">(' + s.totalDays + ' yr)</span>' : '';
+                            var sickBadge = sickInView > 0
+                                ? '<div class="lc-lcount lc-sick-count"><span class="lc-lval-sick">' + sickInView + '</span><span class="lc-llab">🩹 sick</span></div>'
+                                : '';
                             html += '<div class="lc-staff-row">'
                                   + '<div class="lc-frozen-name"><div class="lc-sname">' + s.name + '</div><div class="lc-sid">' + s.id + '</div></div>'
                                   + '<div class="lc-frozen-meta"><div class="lc-stitle">' + s.title + '</div>'
-                                  + '<div class="lc-lcount"><span class="lc-lval">' + leaveInView + '</span><span class="lc-llab"> days off</span>' + yrNote + '</div></div>'
+                                  + '<div class="lc-lcount"><span class="lc-lval">' + leaveInView + '</span><span class="lc-llab"> days off</span>' + yrNote + '</div>'
+                                  + sickBadge
+                                  + '</div>'
                                   + '<div class="lc-leave-cells">' + cells + '</div>'
                                   + '</div>';
                         });
@@ -11396,7 +11856,9 @@
                     var staff = lcBuildStaffFromBids();
 
                     var lbl = document.getElementById('lcMonthLabel');
-                    if (lbl) lbl.textContent = lcViewMode === 'full' ? 'Full Year 2026' : LC_MONTHS[lcMonth] + ' 2026';
+                    if (lbl) lbl.textContent = lcViewMode === 'full' ? ('Full Year ' + lcYear) : (LC_MONTHS[lcMonth] + ' ' + lcYear);
+                    var yrLbl = document.getElementById('lcYearLabel');
+                    if (yrLbl) yrLbl.textContent = lcYear;
 
                     var statsEl = document.getElementById('lcStats');
                     if (statsEl) statsEl.innerHTML = lcBuildStats(staff, dates);
@@ -11449,6 +11911,8 @@
                 window.lcPrevMonth   = function() { lcViewMode = 'month'; lcMonth = (lcMonth - 1 + 12) % 12; lcRender(); };
                 window.lcNextMonth   = function() { lcViewMode = 'month'; lcMonth = (lcMonth + 1) % 12; lcRender(); };
                 window.lcShowAll     = function() { lcViewMode = 'full'; lcRender(); };
+                window.lcPrevYear    = function() { lcYear -= 1; lcRender(); };
+                window.lcNextYear    = function() { lcYear += 1; lcRender(); };
                 window.lcRefresh     = function() { lcRender(); };
                 window.lcSetDept     = function(d) {
                     lcDeptFilter = d;
@@ -11471,10 +11935,14 @@
                     var csv = rows.map(function(r) { return r.map(function(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(','); }).join('\n');
                     var a = document.createElement('a');
                     a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-                    a.download = 'GC_CS_Leave_2026.csv'; a.click();
+                    a.download = 'GC_CS_Leave_' + lcYear + '.csv'; a.click();
                 };
 
+                lcLoadPhLocal();
                 lcRender();
+                // Sync public holidays from Supabase (if configured) in the
+                // background, then re-render so the grid/stats reflect them.
+                lcLoadPublicHolidays().then(function() { lcRender(); });
 
                 // ── Start realtime subscription for the Leave Tracker ─────────
                 // Expose lcRender on window so the realtime callback can call it
@@ -11676,11 +12144,14 @@
                     var rows = lcSfParseRows(text);
                     var whitelist = lcSfWhitelist();
                     var matched = rows.filter(function(r){ return whitelist.has(r.id); });
+                    var alCount = matched.filter(function(r){ return lcAbsenceCode(r.leaveType) === 'A'; }).length;
+                    var slCount = matched.filter(function(r){ return lcAbsenceCode(r.leaveType) === 'SL'; }).length;
                     var prev = document.getElementById('lcSfPreview');
                     if (prev) {
                         var msg = 'Detected ' + (rows.length + (rows._skippedStatus||0)) + ' rows — ';
                         if (rows._hasStatusCol) msg += (rows._skippedStatus||0) + ' non-approved skipped, ';
-                        msg += rows.length + ' approved, ' + matched.length + ' match dashboard employees.';
+                        msg += rows.length + ' approved, ' + matched.length + ' match dashboard employees ';
+                        msg += '(' + alCount + ' Annual / ' + slCount + ' Sick).';
                         if (!rows._hasStatusCol) msg += ' ⚠ No status column detected — export should be pre-filtered to Approved only.';
                         prev.textContent = msg;
                         prev.classList.add('show');
@@ -11786,13 +12257,14 @@
                         var position = STAFF_TITLES[r.id] || dept;
                         var slotType = (r.days || 0) > 15 ? 'slotC' : 'slotA';
 
-                        // Only columns that exist in leave_requests (matches the real schema)
+                        // Only columns that exist in corporate_leave_request (matches the real schema)
                         var record = {
                             tenant_id:      tid,
                             employee_id:    r.id,
                             employee_name:  r.name || r.id,
                             department:     dept,
                             slot_type:      slotType,
+                            leave_type:     r.leaveType,
                             start_date:     r.startDate,
                             end_date:       r.endDate,
                             days_requested: r.days,
@@ -11804,7 +12276,7 @@
                             try {
                                 // Step 1 — check if a record already exists for this employee+slot+start
                                 var { data: existing, error: selErr } = await self.supabase
-                                    .from('leave_requests')
+                                    .from('corporate_leave_request')
                                     .select('id')
                                     .eq('tenant_id',    tid)
                                     .eq('employee_id',  r.id)
@@ -11816,11 +12288,12 @@
                                 if (existing && existing.id) {
                                     // UPDATE existing row by id
                                     var { error: updErr } = await self.supabase
-                                        .from('leave_requests')
+                                        .from('corporate_leave_request')
                                         .update({
                                             end_date:       record.end_date,
                                             days_requested: record.days_requested,
                                             employee_name:  record.employee_name,
+                                            leave_type:     record.leave_type,
                                             status:         'approved'
                                         })
                                         .eq('id', existing.id);
@@ -11829,7 +12302,7 @@
                                 } else {
                                     // INSERT new row
                                     var { error: insErr } = await self.supabase
-                                        .from('leave_requests')
+                                        .from('corporate_leave_request')
                                         .insert(record);
                                     opErr = insErr;
                                     if (!insErr) inserted++;
@@ -11853,11 +12326,12 @@
                                 department:   dept,
                                 position:     position,
                                 slotType:     slotType,
+                                leaveType:    r.leaveType,
                                 startDate:    r.startDate,
                                 endDate:      r.endDate,
                                 days:         r.days,
                                 timestamp:    new Date().toISOString(),
-                                _sourceTable: 'leave_requests',
+                                _sourceTable: 'corporate_leave_request',
                                 _importSource:'SAP_SF'
                             };
                             var existIdx = (self.state.bids || []).findIndex(function(b){
@@ -11874,13 +12348,15 @@
                             var allBids = [], pg2 = 0, more2 = true, bs2 = 1000;
                             while (more2) {
                                 var { data: batch2, error: err2 } = await self.supabase
-                                    .from('leave_requests').select('*')
+                                    .from('corporate_leave_request').select('*')
                                     .eq('tenant_id', tid).range(pg2, pg2 + bs2 - 1);
                                 if (err2 || !batch2 || !batch2.length) { more2 = false; }
                                 else { allBids = allBids.concat(batch2); more2 = batch2.length === bs2; pg2 += bs2; }
                             }
-                            self.state.bids = self.state.bids.filter(function(b){ return b._sourceTable === 'maint_leave_requests'; });
-                            allBids.forEach(function(row) { self.state.bids.push(self._mapRemoteBid(row, 'leave_requests')); });
+                            // Keep everything that ISN'T corporate (Ops + Maintenance bids untouched),
+                            // then re-add the freshly synced corporate rows
+                            self.state.bids = self.state.bids.filter(function(b){ return b._sourceTable !== 'corporate_leave_request'; });
+                            allBids.forEach(function(row) { self.state.bids.push(self._mapRemoteBid(row, 'corporate_leave_request')); });
                         } catch(ex2) { console.warn('Post-sync reload failed', ex2); }
                     }
 
