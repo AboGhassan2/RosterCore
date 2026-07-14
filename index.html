@@ -826,8 +826,43 @@
             overflow-y: auto;
         }
         @media (max-width: 1000px) {
-            .app-shell-body { flex-direction: column; }
-            .app-sidebar { width: 100%; position: static; max-height: none; }
+            .app-sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 78vw;
+                max-width: 300px;
+                height: 100vh;
+                max-height: 100vh;
+                border-radius: 0;
+                box-shadow: 4px 0 24px rgba(0,0,0,0.25);
+                transform: translateX(-105%);
+                transition: transform 0.25s ease;
+                z-index: 300;
+            }
+            .app-sidebar.mobile-open { transform: translateX(0); }
+        }
+        .app-sidebar-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(8,28,21,0.45);
+            z-index: 250;
+        }
+        .app-sidebar-backdrop.show { display: block; }
+        .app-mobile-toggle {
+            display: none;
+            width: 34px; height: 34px;
+            border-radius: 9px;
+            align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.18);
+            color: #fff;
+            font-size: 1.1rem;
+            cursor: pointer;
+        }
+        @media (max-width: 1000px) {
+            .app-mobile-toggle { display: flex; }
         }
         .app-sidebar-item {
             display: flex;
@@ -1020,6 +1055,7 @@
         <!-- Post-login header (hidden on login screen) -->
         <div id="userInfo" class="hidden app-topbar">
             <div style="display:flex;align-items:center;gap:12px;">
+                <button class="app-mobile-toggle" id="mobileNavToggle" onclick="app.toggleMobileSidebar()" title="Menu" aria-label="Open menu">☰</button>
                 <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:700;color:#fff;letter-spacing:0.06em;">
                     FL<span style="color:#74c69d;">O</span>W
                 </div>
@@ -1316,10 +1352,22 @@
 
         <div class="app-shell-body">
 
+        <!-- Mobile sidebar backdrop -->
+        <div id="sidebarBackdrop" class="app-sidebar-backdrop" onclick="app.toggleMobileSidebar(false)"></div>
+
         <!-- Planner Sidebar -->
         <aside id="plannerSidebar" class="hidden app-sidebar">
             <button onclick="app.setActiveView('dashboard')" class="app-sidebar-item" data-snav="dashboard"><span class="sb-icon">📊</span>Dashboard</button>
             <button onclick="app.setActiveView('manageOnCall')" class="app-sidebar-item" data-snav="manageOnCall"><span class="sb-icon">📅</span>On-Call Roster</button>
+
+            <details class="sb-group" data-sbgroup="reports" open>
+                <summary class="sb-group-summary"><span class="sb-caret">▸</span>Reports</summary>
+                <div class="sb-group-items">
+                    <button onclick="app.setActiveView('leaveDashboard')" class="app-sidebar-item" data-snav="leaveDashboard"><span class="sb-icon">📅</span>GC &amp; CS Leave Tracker</button>
+                    <button onclick="app.setActiveView('hrCorpDashboard')" class="app-sidebar-item" data-snav="hrCorpDashboard"><span class="sb-icon">🏢</span>HR Corporate Dashboard</button>
+                    <button onclick="app.setActiveView('auditLog')" class="app-sidebar-item" data-snav="auditLog"><span class="sb-icon">🔍</span>Audit Log</button>
+                </div>
+            </details>
 
             <details class="sb-group" data-sbgroup="bidding" open>
                 <summary class="sb-group-summary"><span class="sb-caret">▸</span>Bidding &amp; Results</summary>
@@ -1335,15 +1383,6 @@
                     <button onclick="app.setActiveView('upload')" class="app-sidebar-item" data-snav="upload"><span class="sb-icon">📤</span>Upload Data</button>
                     <button onclick="app.setActiveView('configureSlots')" class="app-sidebar-item" data-snav="configureSlots"><span class="sb-icon">⚙️</span>Configure Slots</button>
                     <button onclick="app.setActiveView('configureMaintSlots')" class="app-sidebar-item" data-snav="configureMaintSlots"><span class="sb-icon">🔧</span>Configure Staff Slots</button>
-                </div>
-            </details>
-
-            <details class="sb-group" data-sbgroup="reports" open>
-                <summary class="sb-group-summary"><span class="sb-caret">▸</span>Reports</summary>
-                <div class="sb-group-items">
-                    <button onclick="app.setActiveView('leaveDashboard')" class="app-sidebar-item" data-snav="leaveDashboard"><span class="sb-icon">📅</span>GC &amp; CS Leave Tracker</button>
-                    <button onclick="app.setActiveView('hrCorpDashboard')" class="app-sidebar-item" data-snav="hrCorpDashboard"><span class="sb-icon">🏢</span>HR Corporate Dashboard</button>
-                    <button onclick="app.setActiveView('auditLog')" class="app-sidebar-item" data-snav="auditLog"><span class="sb-icon">🔍</span>Audit Log</button>
                 </div>
             </details>
 
@@ -2551,6 +2590,16 @@
                 }
             },
 
+            // Mobile slide-out sidebar control
+            toggleMobileSidebar(force) {
+                const sb = document.getElementById('plannerSidebar');
+                const bd = document.getElementById('sidebarBackdrop');
+                if (!sb || !bd) return;
+                const open = typeof force === 'boolean' ? force : !sb.classList.contains('mobile-open');
+                sb.classList.toggle('mobile-open', open);
+                bd.classList.toggle('show', open);
+            },
+
             // Highlights the active item in both the top tab bar and the planner sidebar
             _syncNavHighlight(view) {
                 document.querySelectorAll('[data-nav]').forEach(el => {
@@ -2563,6 +2612,8 @@
                 const activeItem = document.querySelector(`.app-sidebar [data-snav="${view}"]`);
                 const group = activeItem ? activeItem.closest('.sb-group') : null;
                 if (group) group.open = true;
+                // On mobile, close the slide-out sidebar after navigating
+                if (window.innerWidth <= 1000) this.toggleMobileSidebar(false);
             },
 
             // Keeps the header notification bell and sidebar deadline card in sync,
